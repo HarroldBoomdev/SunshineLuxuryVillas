@@ -1,0 +1,25 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::table('viewings', function (Blueprint $table) {
+            $table->json('client_ids')->nullable();
+            $table->json('property_ids')->nullable();
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('viewings', function (Blueprint $table) {
+            $table->dropColumn('client_ids');
+            $table->dropColumn('property_ids');
+        });
+    }
+
+};
