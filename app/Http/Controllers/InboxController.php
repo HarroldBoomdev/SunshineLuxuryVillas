@@ -23,7 +23,7 @@ class InboxController extends Controller
         'contact-us'       => 'Contact Us',
         'affiliate-page'   => 'Affiliate Page',
         'request-callback' => 'Request a Callback',
-        'subscribe' => 'Subscribe',
+        'subscribe'        => 'Subscribe',
     ];
 
     /**
@@ -100,7 +100,7 @@ class InboxController extends Controller
     }
 
     /**
-     * (Web version) Manual send from Inbox UI
+     * (Web UI) Manual outbound send
      * POST /inbox/{id}/send  (protected)
      */
     public function send(int $id, Request $request)
@@ -150,8 +150,7 @@ class InboxController extends Controller
     }
 
     /**
-     * (API-STYLE SAVE) — If this controller is NOT bound to /api/inbox, you can ignore.
-     * Kept for reference / parity with Api\InboxController.
+     * API-style save entrypoint
      */
     public function store(Request $request)
     {
@@ -176,28 +175,58 @@ class InboxController extends Controller
             'payload'   => $data['payload']   ?? null,
         ]);
 
-        // Build recipient list: _always + specific + _default
-        $recipients = array_values(array_unique(array_filter(array_merge(
-            config('form_inbox._always', []),
-            config('form_inbox.' . $data['form_key'], []),
-            config('form_inbox._default', []),
-        ))));
+        // --- Build routing from config (config/form_inbox.php) ---
+        $map   = config('form_inbox', []);
+        $route = $map[$data['form_key']] ?? ($map['_default'] ?? []);
+
+        $to  = array_values(array_filter($route['to']  ?? []));
+        $cc  = array_values(array_filter(array_merge($map['_always'] ?? [], $route['cc'] ?? [])));
+        $bcc = array_values(array_filter($route['bcc'] ?? []));
+
+        // Ensure we always have at least one primary recipient
+        if (empty($to) && !empty($map['_default']['to'])) {
+            $to = (array) $map['_default']['to'];
+        }
 
         $mailError = null;
+
+        // --- INTERNAL NOTIFICATION ---
         try {
-            Mail::to($recipients)->send(new FormSubmissionReceived($submission));
+            Mail::to($to)
+                ->cc($cc)
+                ->bcc($bcc)
+                ->send(new FormSubmissionReceived($submission));
         } catch (\Throwable $e) {
             $mailError = $e->getMessage();
             Log::error('Form submission mail failed', [
                 'submission_id' => $submission->id,
-                'error' => $mailError,
+                'error'         => $mailError,
+                'to'            => $to,
+                'cc'            => $cc,
+                'bcc'           => $bcc,
             ]);
+        }
+
+        // --- AUTO-REPLY TO LEAD (if they provided an email) ---
+        if (!empty($data['email'])) {
+            try {
+                Mail::send('emails.auto_reply', ['data' => $data, 'submission' => $submission], function ($m) use ($data) {
+                    $m->to($data['email'])
+                      ->subject('Thanks for contacting Sunshine Luxury Villas');
+                });
+            } catch (\Throwable $e) {
+                Log::warning('Auto-reply failed', [
+                    'submission_id' => $submission->id,
+                    'error'         => $e->getMessage(),
+                    'lead_email'    => $data['email'],
+                ]);
+            }
         }
 
         return response()->json([
             'ok'       => true,
             'id'       => $submission->id,
-            'sent_to'  => $recipients,
+            'sent_to'  => ['to' => $to, 'cc' => $cc, 'bcc' => $bcc],
             'mail_err' => $mailError,
         ]);
     }
@@ -214,7 +243,7 @@ class InboxController extends Controller
             'contact_us'       => 'contact-us',
             'affiliate'        => 'affiliate-page',
             'request_callback' => 'request-callback',
-            'subscribe' => 'subscribe',
+            'subscribe'        => 'subscribe',
             default            => str_replace('_', '-', $formKey),
         };
     }
@@ -225,10 +254,9 @@ class InboxController extends Controller
             ->latest()
             ->paginate(20);
 
-        // If your view is a unified inbox page, keep its name (e.g. 'inbox.index')
         return view('inbox.index', [
-            'tabs'        => $this->tabs ?? [],     // keep if your view expects it
-            'type'        => 'request_callback',    // the active tab
+            'tabs'        => $this->tabs ?? [],
+            'type'        => 'request_callback',
             'submissions' => $submissions,
             'search'      => null,
         ]);
