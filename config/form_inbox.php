@@ -1,6 +1,7 @@
 <?php
 
 return [
+
     /*
     |--------------------------------------------------------------------------
     | Global notifications
@@ -19,10 +20,10 @@ return [
     |--------------------------------------------------------------------------
     | Use the form_key your frontend posts with.
     | - Investor club signups  -> investorclub@...
-    | - Callback/Contact/Property enquiries -> enquiries@...
+    | - Callback/Contact/Property enquires -> enquires@...
     */
     'property_details' => [
-        'to'  => ['enquiries@sunshineluxuryvillas.com'],  // include property reference in subject/body
+        'to'  => ['enquires@sunshineluxuryvillas.com'],  // include property reference in subject/body
         'cc'  => [],
         'bcc' => [],
     ],
@@ -35,18 +36,19 @@ return [
 
     // “Request a callback” form (make sure FE posts form_key = request_callback)
     'request_callback' => [
-        'to'  => ['enquiries@sunshineluxuryvillas.com'],  // include current page URL in body
+        'to'  => ['enquires@sunshineluxuryvillas.com'],  // include current page URL in body
         'cc'  => [],
         'bcc' => [],
     ],
 
+    // Contact Us form
     'contact_us' => [
-        'to'  => ['enquiries@sunshineluxuryvillas.com'],
+        'to'  => ['enquires@sunshineluxuryvillas.com'],
         'cc'  => [],
         'bcc' => [],
     ],
 
-    // Not specified—fall back to _default (below) unless you want to hard-route these too:
+    // Other optional forms — you can add routes here if needed
     'sell_with_us' => [],
     'affiliate'    => [],
     'subscribe'    => [],
@@ -58,8 +60,9 @@ return [
     | If a form_key isn’t listed above, we’ll send here (and still CC _always).
     */
     '_default' => [
-        'to'  => ['enquiries@sunshineluxuryvillas.com'],
+        'to'  => ['enquires@sunshineluxuryvillas.com'],
         'cc'  => [],
         'bcc' => [],
     ],
+
 ];
