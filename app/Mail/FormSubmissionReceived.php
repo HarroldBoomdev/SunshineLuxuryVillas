@@ -58,11 +58,12 @@ class FormSubmissionReceived extends Mailable
         ]));
 
         return $this->from($fromAddress, 'SLV Estates')
-            ->replyTo($replyToEmail, $replyToName)
-            ->subject($subject)
-            ->view('emails.form_submission_received', [
-                'submission' => $s
-            ]);
+        ->replyTo($replyToEmail, $replyToName)
+        ->subject($subject)
+        ->view('emails.form_submission_received', [
+            'submission' => $s, // or $this->submission if that's what you use
+        ]);
+
 
     }
 
