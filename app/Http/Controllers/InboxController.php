@@ -192,22 +192,16 @@ class InboxController extends Controller
 
         $mailError = null;
 
-        // --- INTERNAL NOTIFICATION ---
-        try {
-            Mail::to($to)
-                ->cc($cc)
-                ->bcc($bcc)
-                ->send(new FormSubmissionReceived($submission));
+       try {
+            Mail::send(new \App\Mail\FormSubmissionReceived($submission));
         } catch (\Throwable $e) {
             $mailError = $e->getMessage();
             Log::error('Form submission mail failed', [
                 'submission_id' => $submission->id,
                 'error'         => $mailError,
-                'to'            => $to,
-                'cc'            => $cc,
-                'bcc'           => $bcc,
             ]);
         }
+
 
         // --- AUTO-REPLY TO LEAD (if they provided an email) ---
         if (!empty($data['email'])) {
