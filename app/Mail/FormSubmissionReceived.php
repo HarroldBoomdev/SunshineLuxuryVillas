@@ -34,4 +34,41 @@ class FormSubmissionReceived extends Mailable
             view: 'emails.form_submission'
         );
     }
+    public function build()
+    {
+        /** @var \App\Models\FormSubmission $s */
+        $s = $this->submission ?? $this->data['submission'] ?? null; // adjust if your ctor differs
+        $formKey = $s?->form_key ?? 'contact_us';
+
+        // Pick the sender identity per form
+        $fromAddress = match ($formKey) {
+            'investor_club'    => 'investorclub@sunshineluxuryvillas.com',
+            default            => 'enquires@sunshineluxuryvillas.com', // contact_us, property_details, request_callback, etc.
+        };
+
+        // If the visitor provided an email, replying should go to them
+        $replyToEmail = $s?->email ?: $fromAddress;
+        $replyToName  = $s?->name  ?: 'Website Visitor';
+
+        // Subject
+        $subject = implode(' • ', array_filter([
+            'New Website Enquiry',
+            $s?->reference,
+            $s?->name,
+        ]));
+
+        return $this->from($fromAddress, 'SLV Estates')
+            ->replyTo($replyToEmail, $replyToName)
+            ->subject($subject)
+            ->view('mail.enquiry_notification', [
+                'name'       => $s?->name,
+                'email'      => $s?->email,
+                'phone'      => $s?->phone,
+                'reference'  => $s?->reference,
+                'payload'    => $s?->payload,
+                'submitted_at' => optional($s?->created_at)->toDateTimeString(),
+            ]);
+    }
+
+
 }

