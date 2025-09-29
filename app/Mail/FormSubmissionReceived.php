@@ -60,14 +60,10 @@ class FormSubmissionReceived extends Mailable
         return $this->from($fromAddress, 'SLV Estates')
             ->replyTo($replyToEmail, $replyToName)
             ->subject($subject)
-            ->view('mail.enquiry_notification', [
-                'name'       => $s?->name,
-                'email'      => $s?->email,
-                'phone'      => $s?->phone,
-                'reference'  => $s?->reference,
-                'payload'    => $s?->payload,
-                'submitted_at' => optional($s?->created_at)->toDateTimeString(),
+            ->view('emails.form_submission_received', [
+                'submission' => $s
             ]);
+
     }
 
 
