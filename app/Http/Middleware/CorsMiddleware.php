@@ -12,6 +12,7 @@ class CorsMiddleware
     private array $allowedOrigins = [
         'https://www.sunshineluxuryvillas.co.uk',
         'https://sunshineluxuryvillas.co.uk',
+        'http://127.0.0.1:8080',
         // add staging origins if needed:
         // 'https://staging.sunshineluxuryvillas.co.uk',
     ];
