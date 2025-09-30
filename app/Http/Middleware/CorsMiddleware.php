@@ -13,11 +13,9 @@ class CorsMiddleware
         'https://www.sunshineluxuryvillas.co.uk',
         'https://sunshineluxuryvillas.co.uk',
         'http://127.0.0.1:8080',
-        // add staging origins if needed:
-        // 'https://staging.sunshineluxuryvillas.co.uk',
+        'http://localhost:8080',
     ];
 
-    // Headers your frontend might send
     private string $allowedHeaders = 'Origin, Content-Type, Accept, Authorization, X-Requested-With';
 
     // Methods you want to allow
