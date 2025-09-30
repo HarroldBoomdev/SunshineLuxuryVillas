@@ -30,7 +30,14 @@
         <ul class="space-y-2 text-sm">
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="properties">Properties</a></li>
             <ul class="pl-4 space-y-1">
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="historical">Historical Listings</a></li>
+                <li>
+                    <a href="#"
+                        class="text-gray-600 hover:text-blue-600 report-link"
+                        data-type="historical">
+                        Historical Listings
+                    </a>
+                </li>
+
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="notes">Notes</a></li>
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="total_value">Total Value</a></li>
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="valuations">Valuations</a></li>

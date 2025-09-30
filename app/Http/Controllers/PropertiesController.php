@@ -579,64 +579,111 @@ class PropertiesController extends Controller
     }
 
     public function byReference($ref)
-        {
-            // Look up property by reference
-            $property = PropertiesModel::where('reference', $ref)->first();
+    {
+        // Look up property by reference
+        $property = PropertiesModel::where('reference', $ref)->first();
 
-            if (!$property) {
-                return response()->json(['message' => 'Not found'], 404);
-            }
-
-            return response()->json([
-                'id'        => $property->id,
-                'title'     => $property->title ?? $property->name,
-                'reference' => $property->reference,
-                'location'  => $property->location,
-                'type'      => $property->type,
-                'bedrooms'  => $property->bedrooms,
-                'bathrooms' => $property->bathrooms,
-                'plot'      => $property->plot,
-                'covered'   => $property->covered,
-                'description' => $property->description,
-                'url'       => url("/property/{$property->id}"),
-            ]);
+        if (!$property) {
+            return response()->json(['message' => 'Not found'], 404);
         }
 
+        return response()->json([
+            'id'        => $property->id,
+            'title'     => $property->title ?? $property->name,
+            'reference' => $property->reference,
+            'location'  => $property->location,
+            'type'      => $property->type,
+            'bedrooms'  => $property->bedrooms,
+            'bathrooms' => $property->bathrooms,
+            'plot'      => $property->plot,
+            'covered'   => $property->covered,
+            'description' => $property->description,
+            'url'       => url("/property/{$property->id}"),
+        ]);
+    }
 
-        public function showByReference(string $ref)
-        {
-            $ref = strtoupper(trim($ref));
 
-            $p = \App\Models\PropertiesModel::query()
-                ->whereRaw('UPPER(reference) = ?', [$ref])
-                ->first();
+    public function showByReference(string $ref)
+    {
+        $ref = strtoupper(trim($ref));
 
-            if (!$p) {
-                return response()->json(['message' => 'Not found'], 404);
-            }
+        $p = \App\Models\PropertiesModel::query()
+            ->whereRaw('UPPER(reference) = ?', [$ref])
+            ->first();
 
-            // return a single record; adjust fields as needed
-            return response()->json($p);
+        if (!$p) {
+            return response()->json(['message' => 'Not found'], 404);
         }
 
-        public function findByReference(\Illuminate\Http\Request $request)
-        {
-            $ref = strtoupper(trim($request->input('reference', '')));
+        // return a single record; adjust fields as needed
+        return response()->json($p);
+    }
 
-            if ($ref === '') {
-                return response()->json(['message' => 'reference required'], 422);
-            }
+    public function findByReference(\Illuminate\Http\Request $request)
+    {
+        $ref = strtoupper(trim($request->input('reference', '')));
 
-            $p = \App\Models\PropertiesModel::query()
-                ->whereRaw('UPPER(reference) = ?', [$ref])
-                ->first();
-
-            if (!$p) {
-                return response()->json(['message' => 'Not found'], 404);
-            }
-
-            return response()->json($p);
+        if ($ref === '') {
+            return response()->json(['message' => 'reference required'], 422);
         }
+
+        $p = \App\Models\PropertiesModel::query()
+            ->whereRaw('UPPER(reference) = ?', [$ref])
+            ->first();
+
+        if (!$p) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        return response()->json($p);
+    }
+
+    public function picker(Request $request)
+    {
+    $q = $request->get('q');
+
+    $query = \App\Models\PropertiesModel::query();
+
+    if ($q) {
+        $query->where('reference', 'like', "%{$q}%")
+                ->orWhere('title', 'like', "%{$q}%")
+                ->orWhere('location', 'like', "%{$q}%");
+    }
+
+    $items = $query->limit(20)->get(['id','reference','title','location']);
+
+    return response()->json([
+        'items' => $items
+    ]);
+    }
+
+    public function lookupByRefs(\Illuminate\Http\Request $request)
+    {
+        $refs = (array) $request->query('refs', []);
+        if (empty($refs)) {
+            return response()->json(['data' => []]);
+        }
+
+        $props = \App\Models\PropertiesModel::query()
+            ->select(['reference','title','town','region','country','price','status','property_type'])
+            ->whereIn('reference', $refs)
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'reference'      => $p->reference,
+                    'title'          => $p->title,
+                    'location_line'  => trim(implode(', ', array_filter([$p->town, $p->region, $p->country]))),
+                    'price'          => $p->price,
+                    'status'         => $p->status,
+                    'property_type'  => $p->property_type,
+                ];
+            })
+            ->keyBy('reference');
+
+        return response()->json(['data' => $props]);
+    }
+
+
 
 
 

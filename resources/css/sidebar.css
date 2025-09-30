@@ -767,3 +767,7 @@ h1 {
     max-width: 1000px;
     margin-top: 200px;
 }
+.modal-xl {
+    margin-top: -75px !important;
+    max-width: 1000px !important;
+}

@@ -1,4 +1,6 @@
 <?php
+use Illuminate\Http\Request;
+use App\Models\PropertiesModel as Property;
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertiesController;
@@ -36,7 +38,8 @@ use App\Http\Controllers\Admin\SectionController;
 
 use App\Http\Controllers\InboxController;
 use App\Http\Middleware\Authenticate as AppAuthenticate;
-
+use App\Http\Controllers\Reports\HistoricalListingsController;
+use App\Http\Controllers\FeaturedPropertyController;
 
 Route::get('/check-memory', function () {
     dd(ini_get('memory_limit'));
@@ -269,6 +272,15 @@ Route::middleware('auth')->group(function () {
         Route::post('/{slug}', [SectionController::class, 'update'])->name('update');
     });
 
+    //Historical report
+    Route::prefix('report')->group(function () {
+        Route::get('/report/historical-listings', [HistoricalListingsController::class, 'index'])
+    ->name('reports.historical');
+        Route::get('/historical-listings', [H::class, 'index'])->name('reports.historical');
+        Route::get('/historical-listings.csv', [H::class, 'csv'])->name('reports.historical.csv');
+        Route::get('/historical-listings.pdf', [H::class, 'pdf'])->name('reports.historical.pdf');
+    });
+
 
     Route::middleware(['auth'])->group(function () {
         Route::get('/sections', [SectionController::class, 'index'])->name('sections.index');
@@ -305,6 +317,44 @@ Route::middleware('auth')->group(function () {
     Route::get('/{submissionId}', [InboxController::class, 'show'])
         ->whereNumber('submissionId')
         ->name('inbox.show');
+
+
+    Route::get('/admin/properties/lookup-by-refs', [\App\Http\Controllers\PropertiesController::class, 'lookupByRefs'])
+        ->name('admin.properties.lookupByRefs');
+
+    //Top 12
+    Route::post('/admin/featured-properties/save', [FeaturedPropertyController::class, 'save'])
+        ->name('admin.featured.save')
+        ->middleware(['auth']);
+        
+    Route::get('/properties/picker', function (Request $request) {
+        $q = trim($request->query('q', ''));
+
+        $items = Property::query()
+            ->select('id', 'reference', 'title', 'location')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where('reference', 'like', "%{$q}%")
+                    ->orWhere('title', 'like', "%{$q}%")
+                    ->orWhere('location', 'like', "%{$q}%");
+            })
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id'        => $p->id,
+                    'reference' => strtoupper($p->reference ?? ''),
+                    'title'     => $p->title ?? 'Untitled',
+                    'location'  => $p->location ?? 'N/A',
+                ];
+            });
+
+        return response()->json(['items' => $items]);
+    })->name('properties.picker');
+
+    // resource route comes after
+    Route::resource('properties', PropertiesController::class);
+
 });
 
 });
