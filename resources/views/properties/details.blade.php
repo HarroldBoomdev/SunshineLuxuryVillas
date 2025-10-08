@@ -60,20 +60,29 @@
                         <tr>
                         <th>Labels</th>
                             <td>
-                                @if(!empty($property->labels) && is_array(json_decode($property->labels, true)))
-                                    @foreach(json_decode($property->labels, true) as $label)
+                                @php
+                                    $labels = $property->labels;
+                                    if (is_string($labels)) {
+                                        $tmp = json_decode($labels, true);
+                                        $labels = is_array($tmp) ? $tmp : array_filter(array_map('trim', explode(',', $labels)));
+                                    } elseif (!is_array($labels)) {
+                                        $labels = [];
+                                    }
+                                @endphp
+
+                                @if(!empty($labels))
+                                    @foreach($labels as $label)
                                         <span class="badge bg-primary">{{ $label }}</span>
                                     @endforeach
-                                @else
-                                    N/A
                                 @endif
+
                             </td>
                         </tr>
                         <tr><th>Property Type</th><td>{{ $property->property_type }}</td></tr>
                         <tr><th>Status</th><td>{{ $property->status }}</td></tr>
                         <tr><th>Floor</th><td>{{ $property->floor }}</td></tr>
                         <tr><th>Floors</th><td>{{ $property->floors }}</td></tr>
-                        <tr><th>Parking Spaces</th><td>{{ $property->parking_spaces }}</td></tr>
+                        <tr><th>Parking Spaces</th><td>{{ $property->parkingSpaces ?? 'N/A' }}</td></tr>
                         <tr><th>Living Rooms</th><td>{{ $property->living_rooms }}</td></tr>
                         <tr><th>Kitchens</th><td>{{ $property->kitchens }}</td></tr>
                         <tr><th>Bedrooms</th><td>{{ $property->bedrooms }}</td></tr>
@@ -85,9 +94,9 @@
                         <tr><th>Frames Type</th><td>{{ $property->frames_type }}</td></tr>
                         <tr><th>Year of Construction</th><td>{{ $property->year_construction }}</td></tr>
                         <tr><th>Year of Renovation</th><td>{{ $property->year_renovation }}</td></tr>
-                        <tr><th>Energy Efficiency Rating</th><td>{{ $property->energy_efficiency }}</td></tr>
-                        <tr><th>Communal Charge</th><td>{{ $property->communal_charge_frequency }}</td></tr>
-                        <tr><th>Communal Charge Frequency</th><td>{{ $property->energy_efficiency }}</td></tr>
+                        <tr><th>Energy Efficiency Rating</th><td>{{ $property->energyEfficiency ?? 'N/A' }}</td></tr>
+                        <tr><th>Communal Charge</th><td>{{ $property->communalCharge ?? 'N/A' }}</td></tr>
+                        <tr><th>Communal Charge Frequency</th><td>{{ $property->comChargeFreq ?? 'N/A' }}</td></tr>
                         <tr><th>Reduced Price</th><td>{{ $property->reduced_price }}</td></tr>
                         <tr><th>Commission</th><td>{{ $property->commission }}</td></tr>
                     </table>
@@ -102,15 +111,27 @@
                     <div class="col-md-12">
                         <div id="propertyCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="5000">
                             <div class="carousel-inner">
-                                @foreach($photos as $index => $photo)
-                                    <div class="carousel-item {{ $index == 0 ? 'active' : '' }}">
-                                        <img src="{{ trim($photo, ' "[]') }}"
-                                            class="d-block w-100"
-                                            style="max-height: 400px; object-fit: cover;"
-                                            alt="Property Image">
-                                    </div>
-                                @endforeach
+                                <div class="row">
+                                    @foreach($photos as $index => $photo)
+                                        @php
+                                            $thumbUrl = is_string($photo)
+                                                ? trim($photo, ' "[]')
+                                                : ($photo['url'] ?? $photo['src'] ?? $photo['path'] ?? $photo['image'] ?? $photo['photo_url'] ?? '');
+                                        @endphp
+                                        @if($thumbUrl)
+                                            <div class="col-2">
+                                                <img src="{{ $thumbUrl }}"
+                                                    class="img-thumbnail img-fluid"
+                                                    style="cursor: pointer; max-height: 100px; object-fit: cover;"
+                                                    onclick="changeSlide({{ $index }})"
+                                                    alt="Thumb {{ $index + 1 }}">
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                </div>
                             </div>
+
+
 
                             <!-- Carousel Controls -->
                             <a class="carousel-control-prev" href="#propertyCarousel" role="button" data-bs-slide="prev">
@@ -165,7 +186,12 @@
                 <div class="card-body">
                     <h5 class="card-title">Land</h5>
                     <table class="table table-sm">
-                        <tr><th>Title Dead</th><td>{{ $property->title_deed }}</td></tr>
+                    <tr><th>Registration number</th><td>{{ $property->regnum ?? 'N/A' }}</td></tr>
+                    <tr><th>Section</th><td>{{ $property->section ?? 'N/A' }}</td></tr>
+                    <tr><th>Plot number</th><td>{{ $property->plotnum ?? 'N/A' }}</td></tr>
+                    <tr><th>Sheet/plan</th><td>{{ $property->sheetPlan ?? 'N/A' }}</td></tr>
+                    <tr><th>Title deed</th><td>{{ $property->titleDead ?? 'N/A' }}</td></tr>
+                    <tr><th>Share</th><td>{{ $property->share ?? 'N/A' }}</td></tr>
                     </table>
                 </div>
             </div>
@@ -173,28 +199,63 @@
                 <div class="card-body">
                     <h5 class="card-title">Areas</h5>
                     <table class="table table-sm">
-                        <tr><th>Covered</th><td>{{ $property->covered }}</td></tr>
-                        <tr><th>Covered Veranda</th><td>{{ $property->covered_veranda }}</td></tr>
+                    <tr><th>Covered</th><td>{{ $property->covered ?? 'N/A' }}</td></tr>
+                    <tr><th>Covered Veranda</th><td>{{ $property->coveredVeranda ?? 'N/A' }}</td></tr>
                     </table>
                 </div>
             </div>
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Distances</h5>
+
+                    @php
+                        // format numbers as X, X.5, X.25, etc., and append " km"
+                        $fmtKm = function ($v) {
+                            if ($v === null || $v === '') return 'N/A';
+                            $n = (float) $v;
+                            // trim trailing zeros
+                            $clean = rtrim(rtrim(number_format($n, 2, '.', ''), '0'), '.');
+                            return $clean . ' km';
+                        };
+                    @endphp
+
                     <table class="table table-sm">
-                        <tr><th>Airport</th><td>{{ $property->airport }}</td></tr>
-                        <tr><th>Sea</th><td>{{ $property->sea }}</td></tr>
+                    <tr><th>Amenities</th>        <td>{{ $fmtKm($property->amenities) }}</td></tr>
+                    <tr><th>Airport</th>          <td>{{ $fmtKm($property->airport) }}</td></tr>
+                    <tr><th>Sea</th>              <td>{{ $fmtKm($property->sea) }}</td></tr>
+                    <tr><th>Public Transport</th> <td>{{ $fmtKm($property->publicTransport) }}</td></tr>
+                    <tr><th>Schools</th>          <td>{{ $fmtKm($property->schools) }}</td></tr>
+                    <tr><th>Resort</th>           <td>{{ $fmtKm($property->resort) }}</td></tr>
                     </table>
                 </div>
             </div>
+
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Facilities</h5>
-                    <table class="table table-sm">
-                        <tr><th>Facilities</th><td>{{ $property->facilities }}</td></tr>
-                    </table>
+
+                    @php
+                        $facilities = $property->facilities ?? [];
+                        if (is_string($facilities)) {
+                            $tmp = json_decode($facilities, true);
+                            $facilities = is_array($tmp) ? $tmp : array_filter(array_map('trim', explode(',', $facilities)));
+                        } elseif (!is_array($facilities)) {
+                            $facilities = [];
+                        }
+                    @endphp
+
+                    @if(empty($facilities))
+                        <div class="text-muted">N/A</div>
+                    @else
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach($facilities as $f)
+                                <span class="badge bg-secondary">{{ $f }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
+
         </div>
     </div>
     </div>

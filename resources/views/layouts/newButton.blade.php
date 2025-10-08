@@ -45,37 +45,7 @@
         </ul>
     </div>
 
-    <!-- Actions Menu Dropdown -->
-    <div class="dropdown">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="actionsMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-            Actions Menu
-        </button>
-        <ul class="dropdown-menu" aria-labelledby="actionsMenuButton">
-            <li>
-                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#channelManagerModal">
-                    Channel Manager
-                </a>
-            </li>
-            <li>
-                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#pdfModal">
-                    PDF
-                </a>
-            </li>
 
-            <li><a class="dropdown-item" href="#">Poster</a></li>
-            <li>
-                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#shareModal">
-                    Share
-                </a>
-            </li>
-
-            <li><a class="dropdown-item" href="#">Clone</a></li>
-            <li><a class="dropdown-item" href="#">Archive</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-warning" href="#">Edit</a></li>
-            <li><a class="dropdown-item text-danger" href="#">Delete</a></li>
-        </ul>
-    </div>
 </div>
 
 
@@ -113,9 +83,7 @@
         <!-- Integrations List (hidden by default) -->
         <div id="integrationList" class="border rounded p-2 mt-2" style="max-height: 200px; overflow-y: auto; display: none;">
           @foreach([
-            'Akinia', 'A Place in the Sun', 'Arkadia', 'Bazaraki', 'Casa Casa', 'Facebook',
-            'Fotocasa', 'Gate-away.com', 'Green-Acres', 'Habitaclia', 'Hipflat',
-            'home.cy, land.cy & commercial.cy', 'Homes Overseas'
+            'Akinia', 'Rightmove', 'Zoopla', 'A Place In The Sun', 'Bazaraki', 'James Edition'
           ] as $channel)
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="integration-{{ Str::slug($channel) }}">

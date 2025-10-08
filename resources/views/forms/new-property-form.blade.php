@@ -19,8 +19,15 @@
 @section('content')
 <div class="content-wrapper">
   <div class="container mt-4 mb-4">
-    <form id="propertyForm" action="{{ route('properties.store') }}" method="POST">
-      @csrf
+    <form id="propertyForm"
+        action="{{ (isset($mode) && $mode === 'edit') ? route('properties.update', $property->id) : route('properties.store') }}"
+        method="POST"
+        enctype="multipart/form-data">
+    @csrf
+    @if(isset($mode) && $mode === 'edit')
+        @method('PUT')
+    @endif
+
 
       @include('layouts.newButton')
 
@@ -32,9 +39,34 @@
             <div class="col-md-6">
                 <div class="d-flex justify-content-end">
                     <button type="reset" class="btn btn-secondary">Reset</button>
-                    <button type="submit" class="btn btn-primary">+ Create</button>
+                    <button type="submit" class="btn btn-primary ms-2">+ Create</button>
                 </div>
             </div>
+
+            @php
+                use Illuminate\Support\Str;
+
+                $p = $property ?? null;
+
+                $get = function (string $field, $default = '') use ($p) {
+                    $ov = old($field);
+                    if (!is_null($ov)) return $ov;
+
+                    if ($p) {
+                        if (isset($p->{$field})) return $p->{$field};
+                        $snake = Str::snake($field);
+                        if (isset($p->{$snake})) return $p->{$snake};
+                    }
+                    return $default;
+                };
+
+                $isSelected = function (string $field, $option) use ($get) {
+                    $curr = $get($field, '');
+                    return (string)$curr === (string)$option
+                        || strtolower((string)$curr) === strtolower((string)$option);
+                };
+            @endphp
+
 
     </div>
      <div class="row">

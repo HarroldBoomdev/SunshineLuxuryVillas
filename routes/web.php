@@ -302,63 +302,68 @@ Route::middleware('auth')->group(function () {
     });
 
    // ——— INBOX ——————————————————————————————————————————
-Route::prefix('inbox')->group(function () {
-    // Specific tabs (put FIRST)
-    Route::get('/request-callback', [InboxController::class, 'requestCallback'])
-        ->name('inbox.request_callback');
+    Route::prefix('inbox')->group(function () {
+        // Specific tabs (put FIRST)
+        Route::get('/request-callback', [InboxController::class, 'requestCallback'])
+            ->name('inbox.request_callback');
 
-    Route::get('/property-details', [InboxController::class, 'propertyDetails'])
-        ->name('inbox.property_details');
+        Route::get('/property-details', [InboxController::class, 'propertyDetails'])
+            ->name('inbox.property_details');
 
-    Route::get('/investor-club', [InboxController::class, 'investorClub'])
-        ->name('inbox.investor_club');
+        Route::get('/investor-club', [InboxController::class, 'investorClub'])
+            ->name('inbox.investor_club');
 
-    // Single submission by numeric ID (put LAST)
-    Route::get('/{submissionId}', [InboxController::class, 'show'])
-        ->whereNumber('submissionId')
-        ->name('inbox.show');
-});
-// (Removed the duplicate stand-alone /inbox/request-callback definition)
-
-
-
-// ——— ADMIN / UTIL ROUTES (not under inbox) ——————————
-Route::middleware(['auth'])->group(function () {
-    Route::get('/admin/properties/lookup-by-refs', [PropertiesController::class, 'lookupByRefs'])
-        ->name('admin.properties.lookupByRefs');
-
-    Route::post('/admin/featured-properties/save', [FeaturedPropertyController::class, 'save'])
-        ->name('admin.featured.save');
-});
+        // Single submission by numeric ID (put LAST)
+        Route::get('/{submissionId}', [InboxController::class, 'show'])
+            ->whereNumber('submissionId')
+            ->name('inbox.show');
+    });
+    // (Removed the duplicate stand-alone /inbox/request-callback definition)
 
 
-// ——— PROPERTIES (not under inbox) ————————————————
-Route::get('/properties/picker', function (Request $request) {
-    $q = trim($request->query('q', ''));
 
-    $items = Property::query()
-        ->select('id', 'reference', 'title', 'location')
-        ->when($q !== '', function ($query) use ($q) {
-            $query->where('reference', 'like', "%{$q}%")
-                  ->orWhere('title', 'like', "%{$q}%")
-                  ->orWhere('location', 'like', "%{$q}%");
-        })
-        ->orderByDesc('id')
-        ->limit(50)
-        ->get()
-        ->map(function ($p) {
-            return [
-                'id'        => $p->id,
-                'reference' => strtoupper($p->reference ?? ''),
-                'title'     => $p->title ?? 'Untitled',
-                'location'  => $p->location ?? 'N/A',
-            ];
-        });
+    // ——— ADMIN / UTIL ROUTES (not under inbox) ——————————
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/admin/properties/lookup-by-refs', [PropertiesController::class, 'lookupByRefs'])
+            ->name('admin.properties.lookupByRefs');
 
-    return response()->json(['items' => $items]);
-})->name('properties.picker');
+        Route::post('/admin/featured-properties/save', [FeaturedPropertyController::class, 'save'])
+            ->name('admin.featured.save');
+    });
 
-Route::resource('properties', PropertiesController::class);
+    //API and XML Feed
+
+    Route::get('/feeds/apits.xml', [\App\Http\Controllers\Feeds\ApitsFeedController::class, 'index']);
+
+
+
+    // ——— PROPERTIES (not under inbox) ————————————————
+    Route::get('/properties/picker', function (Request $request) {
+        $q = trim($request->query('q', ''));
+
+        $items = Property::query()
+            ->select('id', 'reference', 'title', 'location')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where('reference', 'like', "%{$q}%")
+                    ->orWhere('title', 'like', "%{$q}%")
+                    ->orWhere('location', 'like', "%{$q}%");
+            })
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id'        => $p->id,
+                    'reference' => strtoupper($p->reference ?? ''),
+                    'title'     => $p->title ?? 'Untitled',
+                    'location'  => $p->location ?? 'N/A',
+                ];
+            });
+
+        return response()->json(['items' => $items]);
+    })->name('properties.picker');
+
+    Route::resource('properties', PropertiesController::class);
 
 
 });

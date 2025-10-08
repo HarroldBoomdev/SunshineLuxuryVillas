@@ -212,13 +212,15 @@
                                 <td class="px-4 py-2 border text-center">{{ $property->is_live ? '✅' : '❌' }}</td>
                                 <td class="px-4 py-2 border">
                                     @can('property.view')
-                                        <a href="#"
+                                        <a  href="{{ route('properties.show', $property->id) }}"
+                                            target="_blank" rel="noopener"
                                             class="btn btn-sm btn-info"
                                             title="View"
-                                            onclick="openTab('#{{ $property->id }} - {{ Str::limit($property->title, 20) }}', '{{ route('properties.show', $property->id) }}'); return false;">
+                                            onclick="openTab('#{{ $property->id }} - {{ Str::limit($property->title, 20) }}', this.href);">
                                             <i class="fa fa-eye"></i>
                                         </a>
                                     @endcan
+
 
                                     @can('property.edit')
                                         <a href="{{ route('properties.edit', $property->id) }}" class="btn btn-sm btn-warning" title="Edit">

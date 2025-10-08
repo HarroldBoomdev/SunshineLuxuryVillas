@@ -193,35 +193,28 @@ class PropertiesController extends Controller
 
     public function edit($id)
     {
-        $property = PropertiesModel::find($id);
-
-        if (!$property) {
-            abort(404, 'Property not found');
-        }
-
-        // dd($property);
-        return view('properties.edit', compact('property'));
+        $property = \App\Models\PropertiesModel::findOrFail($id);
+        return view('properties.edit', compact('property'))
+            ->with('mode', 'edit');     // <-- add this
     }
-
 
     public function show($id)
     {
         $property = PropertiesModel::findOrFail($id);
-        $property->photos = json_decode($property->photos, true) ?? [];
-        $deals = Deal::all();
-        $diaries = DiaryModel::all();
-        $logs = AuditLog::where('resource_action', 'like', "%property: {$property->reference}%")->latest()->get();
 
-        // Convert photos string into an array and remove extra quotes
+        // Ensure photos is an array (use model accessor if present)
         $photos = is_array($property->photos)
-            ? array_map(fn($photo) => trim($photo, "\""), $property->photos)
-            : explode(',', trim($property->photos, '[]'));
+            ? $property->photos
+            : (is_string($property->photos) ? (json_decode($property->photos, true) ?: []) : []);
 
+        $deals   = Deal::all();
+        $diaries = DiaryModel::all();
+        $logs    = AuditLog::where('resource_action', 'like', "%property: {$property->reference}%")
+                    ->latest()
+                    ->get();
 
         return view('properties.details', compact('property', 'deals', 'diaries', 'logs', 'photos'));
     }
-
-
 
     public function create(Request $request)
     {
@@ -268,7 +261,7 @@ class PropertiesController extends Controller
 
     public function store(Request $request)
     {
-        // Validate input
+        // 1) Validate
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'property_description' => 'nullable|string',
@@ -301,38 +294,50 @@ class PropertiesController extends Controller
             'region' => 'nullable|string',
             'town' => 'nullable|string',
             'address' => 'nullable|string',
+
+            // arrays
             'labels' => 'nullable|array',
             'image_order' => 'nullable|array',
             'photos' => 'nullable|array',
+
+            'regnum' => 'nullable|string|max:255',
+            'plotnum' => 'nullable|string|max:255',
+            'section' => 'nullable|string|max:255',
+            'sheetPlan' => 'nullable|string|max:255',
+            'titleDead' => 'nullable|in:-,available,in_process,no_title',
+            'share' => 'nullable|numeric',
+            'amenities' => 'nullable|numeric',
+            'airport' => 'nullable|numeric',
+            'sea' => 'nullable|numeric',
+            'publicTransport' => 'nullable|numeric',
+            'schools' => 'nullable|numeric',
+            'resort' => 'nullable|numeric',
+
+            'titledeed'   => 'nullable|array',
+            'title_deed'  => 'nullable|array',
+            'title_deed.*'=> 'file|image|max:30720',
         ]);
 
-        // Create and fill property model
-        $property = new PropertiesModel();
-
-        foreach ($validated as $key => $value) {
-            if (in_array($key, ['labels', 'image_order', 'photos'])) {
-                $property->$key = json_encode($value); // store arrays as JSON
-            } else {
-                $property->$key = $value;
+        // 2) JSON-encode array fields
+        foreach (['labels','image_order','photos','floor_plans','titledeed'] as $jsonKey) {
+            if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
+                $validated[$jsonKey] = json_encode($validated[$jsonKey]);
             }
         }
 
-        // Optional: Set user_id
-        $property->user_id = auth()->id();
+        // 3) Uploads + merge
+        $data = $this->processFileUploads($request, $validated);
 
-        // Save the property and check if it succeeded
-        if ($property->save()) {
-            \Log::info('✅ Property saved successfully', ['id' => $property->id]);
-            return redirect()->route('properties.index')->with('success', 'Property added successfully.');
-        } else {
-            \Log::error('❌ Failed to save property', ['data' => $validated]);
-            return back()->with('error', 'Something went wrong while saving the property.');
-        }
+        // 4) attach user_id (if needed)
+        $data['user_id'] = auth()->id();
+
+        // 5) Create
+        $property = PropertiesModel::create($data);
+
+        \Log::info('✅ Property saved successfully', ['id' => $property->id]);
+
+        return redirect()->route('properties.index')->with('success', 'Property added successfully.');
     }
-
-
-
-
 
 
     public function validateRequest(Request $request)
@@ -455,16 +460,27 @@ class PropertiesController extends Controller
                 'complex' => 'nullable|string|max:255',
                 'street' => 'nullable|string|max:255',
                 'zipcode' => 'nullable|string|max:255',
-                'image_order' => 'nullable|string',
-                'photos' => 'nullable|string',
-                'labels' => 'nullable|string',
+                'image_order' => 'nullable|array',
+                'photos'      => 'nullable|array',
+                'labels'      => 'nullable|array',
+                'regnum'        => 'nullable|string|max:255',
+                'plotnum'       => 'nullable|string|max:255',
+                'section'       => 'nullable|string|max:255',
+                'sheetPlan'     => 'nullable|string|max:255',
+                'titleDead'     => 'nullable|in:-,available,in_process,no_title',
+                'share'         => 'nullable|numeric',
+                'amenities'       => 'nullable|numeric',
+                'airport'         => 'nullable|numeric',
+                'sea'             => 'nullable|numeric',
+                'publicTransport' => 'nullable|numeric',
+                'schools'         => 'nullable|numeric',
+                'resort'          => 'nullable|numeric',
+                'titledeed'    => 'nullable|array',
+                'title_deed'   => 'nullable|array',
+                'title_deed.*' => 'file|image|max:30720',
+
+
             ]);
-
-            // Process files (images, etc.)
-            $processedData = $this->processFileUploads($request, $validatedData);
-
-            $property = PropertiesModel::findOrFail($id);
-            $property->update($processedData);
 
             AuditLog::create([
                 'trace_id' => uniqid(),
@@ -476,10 +492,10 @@ class PropertiesController extends Controller
             ]);
 
             return redirect()->route('properties.show', $id)->with('success', 'Property updated successfully!');
-        } catch (\Exception $e) {
-            \Log::error('Error occurred while updating the property: ' . $e->getMessage());
-            return back()->with('error', 'An unexpected error occurred while updating the property.')->withInput();
-        }
+            } catch (\Exception $e) {
+                \Log::error('Error occurred while updating the property: ' . $e->getMessage());
+                return back()->with('error', 'An unexpected error occurred while updating the property.')->withInput();
+            }
     }
 
 
@@ -537,38 +553,57 @@ class PropertiesController extends Controller
 
     private function processFileUploads(Request $request, array $data)
     {
-        // Handle main gallery photos
+        // ----- GALLERY PHOTOS (name="photos[]") -----
+        $existingPhotos = [];
+        if (!empty($data['photos'])) {
+            $decoded = is_array($data['photos']) ? $data['photos'] : json_decode($data['photos'], true);
+            $existingPhotos = is_array($decoded) ? $decoded : [];
+        }
         if ($request->hasFile('photos')) {
-            $photos = [];
             foreach ($request->file('photos') as $file) {
                 $path = $file->store('uploads/photos', 'public');
-                $photos[] = $path;
+                $existingPhotos[] = $path;
             }
-            $data['photos'] = json_encode($photos);
+        }
+        if (!empty($existingPhotos)) {
+            $data['photos'] = json_encode($existingPhotos);
         }
 
-        // Handle title deed
-        if ($request->hasFile('titledeed')) {
-            $deeds = [];
-            foreach ($request->file('titledeed') as $file) {
+        // ----- TITLE DEED IMAGES -----
+        // Hidden ordered list (existing): name="titledeed"
+        $existingDeeds = [];
+        if (!empty($data['titledeed'])) {
+            $decoded = is_array($data['titledeed']) ? $data['titledeed'] : json_decode($data['titledeed'], true);
+            $existingDeeds = is_array($decoded) ? $decoded : [];
+        }
+        // New uploads: name="title_deed[]"
+        if ($request->hasFile('title_deed')) {
+            foreach ($request->file('title_deed') as $file) {
                 $path = $file->store('uploads/titledeed', 'public');
-                $deeds[] = $path;
+                $existingDeeds[] = $path; // appended to the end
             }
-            $data['titledeed'] = json_encode($deeds);
         }
+        $data['titledeed'] = json_encode($existingDeeds);
 
-        // Handle floor plans
+        // ----- FLOOR PLANS (optional merge) -----
+        $existingPlans = [];
+        if (!empty($data['floor_plans'])) {
+            $decoded = is_array($data['floor_plans']) ? $data['floor_plans'] : json_decode($data['floor_plans'], true);
+            $existingPlans = is_array($decoded) ? $decoded : [];
+        }
         if ($request->hasFile('floor_plans')) {
-            $plans = [];
             foreach ($request->file('floor_plans') as $file) {
                 $path = $file->store('uploads/floorplans', 'public');
-                $plans[] = $path;
+                $existingPlans[] = $path;
             }
-            $data['floor_plans'] = json_encode($plans);
+        }
+        if (!empty($existingPlans)) {
+            $data['floor_plans'] = json_encode($existingPlans);
         }
 
         return $data;
     }
+
 
     public function destroy($id)
     {
