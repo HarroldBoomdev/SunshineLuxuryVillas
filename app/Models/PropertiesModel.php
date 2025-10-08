@@ -75,6 +75,7 @@ class PropertiesModel extends Model
         // 'labels' => 'array', // uncomment if labels stored as JSON
         'facilities'   => 'array',
         'titledeed'    => 'array',
+        'photos' => 'array', 'features' => 'array', 'facilities' => 'array',
 
         // numbers
         'price'            => 'float',
