@@ -42,6 +42,8 @@ Route::post('/properties/by-ref',        [PropertiesController::class, 'findByRe
 // fallback single property (keep AFTER specific routes)
 Route::get('/properties/{reference}',    [PropertiesController::class, 'show']);
 
+Route::get('/featured-properties', [PropertiesController::class, 'featured']);
+
 /**
  * Sections
  */

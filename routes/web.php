@@ -273,13 +273,13 @@ Route::middleware('auth')->group(function () {
     });
 
     //Historical report
-    Route::prefix('report')->group(function () {
-        Route::get('/report/historical-listings', [HistoricalListingsController::class, 'index'])
-    ->name('reports.historical');
-        Route::get('/historical-listings', [H::class, 'index'])->name('reports.historical');
-        Route::get('/historical-listings.csv', [H::class, 'csv'])->name('reports.historical.csv');
-        Route::get('/historical-listings.pdf', [H::class, 'pdf'])->name('reports.historical.pdf');
-    });
+    // Route::prefix('report')->group(function () {
+    //     Route::get('/report/historical-listings', [HistoricalListingsController::class, 'index'])
+    // ->name('reports.historical');
+    //     Route::get('/historical-listings', [H::class, 'index'])->name('reports.historical');
+    //     Route::get('/historical-listings.csv', [H::class, 'csv'])->name('reports.historical.csv');
+    //     Route::get('/historical-listings.pdf', [H::class, 'pdf'])->name('reports.historical.pdf');
+    // });
 
 
     Route::middleware(['auth'])->group(function () {
