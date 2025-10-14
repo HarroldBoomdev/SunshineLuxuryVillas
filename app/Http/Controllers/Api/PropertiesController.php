@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PropertyResource;
 use App\Models\PropertiesModel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 
 class PropertiesController extends Controller
 {
@@ -68,13 +71,54 @@ class PropertiesController extends Controller
 
     public function featured()
     {
-        $featured = PropertiesModel::where('is_featured', true)
-            ->latest()
-            ->take(5)
+        // Prefer the curated admin list (table created/used by admin.featured.save)
+        if (Schema::hasTable('featured_properties')) {
+
+            // If your table stores PROPERTY IDs:
+            if (Schema::hasColumn('featured_properties', 'property_id')) {
+                $ids = collect(
+                    DB::table('featured_properties')
+                        ->orderBy('position')
+                        ->pluck('property_id')
+                        ->all()
+                )->filter()->values();
+
+                if ($ids->isNotEmpty()) {
+                    $map = PropertiesModel::whereIn('id', $ids)->get()->keyBy('id');
+                    $ordered = $ids->map(fn ($id) => $map->get($id))->filter()->values()->take(12);
+                    return response()->json($ordered, 200);
+                }
+            }
+
+            // If your table stores REFERENCES:
+            if (Schema::hasColumn('featured_properties', 'reference')) {
+                $refs = collect(
+                    DB::table('featured_properties')
+                        ->orderBy('position')
+                        ->pluck('reference')
+                        ->all()
+                )->map(fn ($r) => strtoupper(trim($r)))
+                ->filter()->values();
+
+                if ($refs->isNotEmpty()) {
+                    $map = PropertiesModel::whereIn('reference', $refs)->get()
+                        ->keyBy(fn ($p) => strtoupper($p->reference));
+                    $ordered = $refs->map(fn ($r) => $map->get($r))->filter()->values()->take(12);
+                    return response()->json($ordered, 200);
+                }
+            }
+        }
+
+        // Fallback (only if curated list empty/missing)
+        $items = PropertiesModel::where('is_featured', 1)
+            ->latest('updated_at')
+            ->limit(12)
             ->get();
 
-        return response()->json($featured);
+        return response()->json($items, 200);
     }
+
+
 
     public function recent()
     {

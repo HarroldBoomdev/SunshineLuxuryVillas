@@ -289,6 +289,9 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::delete('/properties/{id}', [PropertiesController::class, 'destroy'])->name('properties.destroy');
+    Route::get('/admin/properties/picker', [PropertiesController::class, 'picker'])
+    ->name('properties.picker');
+
 
     //Banks
     Route::get('/banks', [BankController::class, 'index'])->name('banks.index');

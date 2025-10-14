@@ -185,7 +185,16 @@ class PropertiesController extends Controller
             "Yemen", "Zambia", "Zimbabwe"
         ];
 
-        return view('properties.index', compact('properties', 'propertyTypes', 'countries'));
+        $query->orderBy('id', 'desc');
+        $properties = $query->paginate(20);
+
+        $pickerProps = \App\Models\PropertiesModel::select('id', 'reference', 'title', 'country')
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get();
+
+        return view('properties.index', compact('properties', 'propertyTypes', 'countries', 'pickerProps'));
+
     }
 
 
@@ -673,25 +682,6 @@ class PropertiesController extends Controller
         return response()->json($p);
     }
 
-    public function picker(Request $request)
-    {
-    $q = $request->get('q');
-
-    $query = \App\Models\PropertiesModel::query();
-
-    if ($q) {
-        $query->where('reference', 'like', "%{$q}%")
-                ->orWhere('title', 'like', "%{$q}%")
-                ->orWhere('location', 'like', "%{$q}%");
-    }
-
-    $items = $query->limit(20)->get(['id','reference','title','location']);
-
-    return response()->json([
-        'items' => $items
-    ]);
-    }
-
     public function lookupByRefs(\Illuminate\Http\Request $request)
     {
         $refs = (array) $request->query('refs', []);
@@ -716,10 +706,30 @@ class PropertiesController extends Controller
             ->keyBy('reference');
 
         return response()->json(['data' => $props]);
+
+
     }
 
+    public function picker(Request $request)
+    {
+        $term = $request->get('q', '');
 
+        $query = \App\Models\PropertiesModel::select('id', 'reference', 'title', 'country', 'town', 'province');
 
+        if (strlen($term) >= 3) {
+            $query->where(function ($q) use ($term) {
+                $q->where('reference', 'LIKE', "%{$term}%")
+                ->orWhere('title', 'LIKE', "%{$term}%");
+            });
+        }
+
+        $properties = $query->orderByDesc('id')->limit(100)->get()->map(function ($p) {
+            $p->location = implode(', ', array_filter([$p->town, $p->province, $p->country]));
+            return $p;
+        });
+
+        return response()->json(['items' => $properties]);
+    }
 
 
 

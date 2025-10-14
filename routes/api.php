@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SectionController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Form\SubscribeController as StatamicSubscribeController;
 use App\Http\Controllers\Api\NewsletterController;
+use App\Http\Controllers\FeaturedController;
 
 
 /**
@@ -105,5 +106,9 @@ Route::post('/subscribe', function (Request $request) {
         'id'      => $submission->id,
     ]);
 });
+
+
+Route::get('/featured-properties', [FeaturedController::class, 'index']);
+Route::post('/featured-properties', [FeaturedController::class, 'store'])->name('admin.featured.save');
 
 

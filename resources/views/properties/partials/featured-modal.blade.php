@@ -1,20 +1,16 @@
 @push('styles')
 <style>
-  /* Make this modal almost full width (Bootstrap 5 variable) */
-  #featuredModal{ --bs-modal-width: 98vw; }
-
-  #featuredModal .fp-line{
+  #featuredModal { --bs-modal-width: 98vw; }
+  #featuredModal .fp-line {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
   }
-  /* Allow text blocks to shrink so ellipsis works inside flex rows */
   #featuredModal .fp-left-item .flex-fill,
-  #featuredModal .fp-right-item .flex-fill{ min-width: 0; }
-  /* Badges/buttons shouldn’t force wrapping */
+  #featuredModal .fp-right-item .flex-fill { min-width: 0; }
   #featuredModal .fp-badge,
-  #featuredModal .fp-remove{ flex: 0 0 auto; }
+  #featuredModal .fp-remove { flex: 0 0 auto; }
 </style>
 @endpush
 
@@ -23,13 +19,14 @@
   <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="featuredModalLabel">Manage Featured Properties (max 12)</h5>
+        <h5 class="modal-title">Manage Featured Properties (max 12)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body">
         <div class="row g-3">
-          <!-- LEFT: wider column -->
+
+          <!-- LEFT: property list -->
           <div class="col-12 col-xl-7 col-lg-7 col-md-7">
             <div class="d-flex mb-2 gap-2">
               <input id="fp-search" type="text" class="form-control" placeholder="Search by reference or title">
@@ -38,7 +35,26 @@
 
             <div class="border rounded">
               <ul id="fp-left-list" class="list-group list-group-flush" style="max-height:460px;overflow:auto;">
-                <!-- AJAX items -->
+                @foreach($pickerProps as $p)
+                  <li class="list-group-item d-flex align-items-start gap-3 fp-left-item"
+                      data-id="{{ $p->id }}"
+                      data-ref="{{ $p->reference }}"
+                      data-title="{{ $p->title ?? 'Untitled' }}"
+                      data-location="{{ $p->location ?? 'N/A' }}">
+                    <div class="form-check mt-1">
+                      <input class="form-check-input fp-left-cb" type="checkbox" value="{{ $p->id }}">
+                    </div>
+                    <div class="flex-fill">
+                      <div class="fw-semibold fp-line">
+                        <span class="text-muted">#</span>
+                        <span class="fp-ref">{{ $p->reference }}</span>
+                        — <span class="fp-title">{{ $p->title ?? 'Untitled' }}</span>
+                      </div>
+                      <div class="small text-muted d-none d-xl-block">{{ $p->location ?? 'N/A' }}</div>
+                    </div>
+                    <span class="badge bg-info-subtle text-info-emphasis d-none fp-already">Already featured</span>
+                  </li>
+                @endforeach
               </ul>
             </div>
 
@@ -58,9 +74,7 @@
             </div>
 
             <div class="border rounded">
-              <ul id="fp-right-list" class="list-group list-group-flush" style="max-height:520px;overflow:auto;">
-                <!-- seeded + added -->
-              </ul>
+              <ul id="fp-right-list" class="list-group list-group-flush" style="max-height:520px;overflow:auto;"></ul>
             </div>
 
             <div class="small text-muted mt-2">
@@ -70,42 +84,32 @@
         </div>
       </div>
 
-    <div class="modal-footer">
+      <div class="modal-footer">
         <button type="button" class="btn btn-primary" id="fp-save-btn">Submit</button>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-    </div>
-
+      </div>
     </div>
   </div>
 </div>
 
 @push('scripts')
 <script>
-(function () {
-  // settings
+(() => {
   const limit = 12;
-  const seededRefs = [
-    'AMHPRV','NJSLVSC1','JOHAYSLV','LMARSLV','ZAVASLV','TGAALA',
-    'TKBDIR-B201','JOTACPSLV','JOMHSLV','VTSVNSLV','ASTRSVSLV'
-  ];
-  const pickerUrl = "{{ route('properties.picker') }}";
-  const saveUrl   = "{{ route('admin.featured.save') }}";
-
-  // helpers
+  const saveUrl = "/api/featured-properties";
   const $ = (id) => document.getElementById(id);
-  const leftList  = () => $('fp-left-list');
+  const leftList = () => $('fp-left-list');
   const rightList = () => $('fp-right-list');
-  const addBtn    = () => $('fp-add-btn');
-  const token     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-  const apiByRef  = (ref) => new URL(`/api/properties/by-ref/${encodeURIComponent(ref)}`, location.origin).toString();
+  const addBtn = () => $('fp-add-btn');
+  const token = document.querySelector('meta[name="csrf-token"]')?.content;
 
-  function countFeatured(){ return rightList().querySelectorAll('li.fp-right-item').length; }
-  function setFeaturedCount(){ $('fp-featured-count').textContent = countFeatured(); }
-  function setSelectedCount(){
-    const n = leftList().querySelectorAll('.fp-left-cb:checked').length;
-    $('fp-selected-count').textContent = n;
+  // ---- Count + UI helpers ----
+  const countFeatured = () => rightList().querySelectorAll('li.fp-right-item').length;
+  const setFeaturedCount = () => $('fp-featured-count').textContent = countFeatured();
+  const setSelectedCount = () => {
+    $('fp-selected-count').textContent = leftList().querySelectorAll('.fp-left-cb:checked').length;
     enforceSelectionCap();
-  }
+  };
 
   function createRightLi({ ref, title = 'Untitled', location = 'N/A' }) {
     const li = document.createElement('li');
@@ -114,12 +118,9 @@
     li.innerHTML = `
       <div class="flex-fill">
         <div class="fw-semibold fp-line">
-          <span class="text-muted">#</span><span class="fp-ref">${ref}</span>
-          — <span class="fp-title">${title}</span>
+          <span class="text-muted">#</span>${ref} — <span class="fp-title">${title}</span>
         </div>
-        <div class="small text-muted d-none d-xl-block">
-          <span class="fp-location">${location}</span>
-        </div>
+        <div class="small text-muted d-none d-xl-block">${location}</div>
       </div>
       <button type="button" class="btn btn-sm btn-outline-danger fp-remove">&times;</button>
     `;
@@ -133,7 +134,8 @@
     return li;
   }
 
-  function markLeftFeaturedByRef(ref){
+  // ---- Mark / unmark ----
+  function markLeftFeaturedByRef(ref) {
     const row = leftList().querySelector(`.fp-left-item[data-ref="${ref}"]`);
     if (!row) return;
     row.classList.add('is-featured');
@@ -143,7 +145,7 @@
     cb.disabled = true;
   }
 
-  function unmarkLeftFeaturedByRef(ref){
+  function unmarkLeftFeaturedByRef(ref) {
     const row = leftList().querySelector(`.fp-left-item[data-ref="${ref}"]`);
     if (!row) return;
     row.classList.remove('is-featured');
@@ -152,7 +154,8 @@
     cb.disabled = (limit - countFeatured()) <= 0;
   }
 
-  function enforceSelectionCap(){
+  // ---- Enforce max 12 ----
+  function enforceSelectionCap() {
     const cap = Math.max(0, limit - countFeatured());
     const selected = leftList().querySelectorAll('.fp-left-cb:checked').length;
     leftList().querySelectorAll('.fp-left-cb').forEach(cb => {
@@ -165,156 +168,173 @@
     addBtn().disabled = (selected === 0) || (cap === 0);
   }
 
-  function renderLeft(items){
-    const ul = leftList();
-    ul.innerHTML = '';
-    items.forEach(it => {
-      const li = document.createElement('li');
-      li.className = 'list-group-item d-flex align-items-start gap-3 fp-left-item';
-      li.dataset.id = it.id;
-      li.dataset.ref = it.reference;
-      li.dataset.title = it.title ?? 'Untitled';
-      li.dataset.location = it.location ?? 'N/A';
-      li.innerHTML = `
-        <div class="form-check mt-1">
-          <input class="form-check-input fp-left-cb" type="checkbox" value="${it.id}">
-        </div>
-        <div class="flex-fill">
-          <div class="fw-semibold fp-line">
-            <span class="text-muted">#</span><span class="fp-ref">${it.reference}</span>
-            — <span class="fp-title">${it.title ?? 'Untitled'}</span>
-          </div>
-          <div class="small text-muted d-none d-xl-block">${it.location ?? 'N/A'}</div>
-        </div>
-        <span class="badge bg-info-subtle text-info-emphasis d-none fp-already">Already featured</span>
-      `;
-      ul.appendChild(li);
-
-      if (rightList().querySelector(`.fp-right-item[data-ref="${it.reference}"]`)) {
-        li.classList.add('is-featured');
-        li.querySelector('.fp-already').classList.remove('d-none');
-        li.querySelector('.fp-left-cb').disabled = true;
-      }
+  // ---- Client-side filter ----
+  function filterLeft(term) {
+    const t = (term || '').toLowerCase();
+    leftList().querySelectorAll('.fp-left-item').forEach(li => {
+      const text = (li.dataset.ref + ' ' + li.dataset.title).toLowerCase();
+      li.style.display = !t || text.includes(t) ? '' : 'none';
     });
-    enforceSelectionCap();
-    setSelectedCount();
   }
 
-  async function loadLeftAjax(term){
-    const url = new URL(pickerUrl, location.origin);
-    if (term) url.searchParams.set('q', term);
-    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, credentials: 'same-origin' });
-    const data = await res.json();
-    renderLeft(data.items || []);
-  }
-
-  // hydrate right items by hitting the public API for each ref
-  async function hydrateRightFromApi() {
-    const items = Array.from(document.querySelectorAll('#fp-right-list .fp-right-item'));
-    for (const li of items) {
-      const ref = li.dataset.ref;
-      if (!ref) continue;
-      try {
-        const res = await fetch(apiByRef(ref), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
-        if (!res.ok) continue;
-        const payload = await res.json();
-        const row = (payload && (payload.data || payload)) || {};
-
-        li.querySelector('.fp-title')?.replaceChildren(document.createTextNode(row.title || '(no title)'));
-        const loc = row.location || [row.town, (row.region || row.province), row.country].filter(Boolean).join(', ');
-        li.querySelector('.fp-location')?.replaceChildren(document.createTextNode(loc || 'N/A'));
-      } catch (_) {
-        /* keep "(not loaded)" */
-      }
-    }
-  }
-
-  // seed right from static refs (first open only)
-  function seedRightFromRefs(){
-    if (countFeatured() > 0) return;
-
-    // build a quick map of left items for instant fill where possible
-    const left = Array.from(leftList().querySelectorAll('.fp-left-item')).map(li => ({
-      ref: li.dataset.ref,
-      title: li.dataset.title,
-      location: li.dataset.location
-    }));
-
-    seededRefs.forEach(ref => {
-      const match = left.find(p => p.ref === ref);
-      const li = match
-        ? createRightLi({ ref: match.ref, title: match.title, location: match.location })
-        : createRightLi({ ref, title: '(not loaded)', location: '—' });
-      rightList().appendChild(li);
-      markLeftFeaturedByRef(ref);
-    });
-
+  // ---- Modal open ----
+  document.getElementById("featuredModal").addEventListener("shown.bs.modal", () => {
     setFeaturedCount();
     enforceSelectionCap();
-  }
-
-  // collect refs from right column
-  function getRightRefs() {
-    return Array.from(rightList().querySelectorAll('.fp-right-item'))
-      .map(li => li.dataset.ref)
-      .slice(0, limit);
-  }
-
-  // events
-  document.getElementById('featuredModal').addEventListener('shown.bs.modal', async () => {
-    if (leftList().children.length === 0) await loadLeftAjax('');
-    seedRightFromRefs();
-    await hydrateRightFromApi(); // fill titles/locations for seeded refs
     $('fp-search').focus();
   });
 
-  // search
-  let searchTimer = null;
-  const searchEl = $('fp-search');
-  $('fp-clear').addEventListener('click', () => { searchEl.value = ''; loadLeftAjax(''); });
-  searchEl.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => loadLeftAjax(searchEl.value.trim()), 300);
-  });
+  document.getElementById("featuredModal").addEventListener("shown.bs.modal", () => {
+    setFeaturedCount();
+    enforceSelectionCap();
+    $('fp-search').focus();
+    });
 
-  // selection on left
-  leftList().addEventListener('change', (e) => {
+    // ---- AJAX loader for search ----
+    async function loadLeftAjax(term = '') {
+    try {
+        const res = await fetch(`/admin/properties/picker?q=${encodeURIComponent(term)}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        const items = data.items || [];
+        const ul = leftList();
+        ul.innerHTML = '';
+
+        if (!items.length) {
+        ul.innerHTML = '<li class="list-group-item text-muted">No results found.</li>';
+        return;
+        }
+
+        items.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-start gap-3 fp-left-item';
+        li.dataset.id = p.id;
+        li.dataset.ref = p.reference || '';
+        li.dataset.title = p.title || 'Untitled';
+        li.dataset.location = p.location || 'N/A';
+        li.innerHTML = `
+            <div class="form-check mt-1">
+            <input class="form-check-input fp-left-cb" type="checkbox" value="${p.id}">
+            </div>
+            <div class="flex-fill">
+            <div class="fw-semibold fp-line">
+                <span class="text-muted">#</span>${p.reference || ''} — ${p.title || 'Untitled'}
+            </div>
+            <div class="small text-muted d-none d-xl-block">${p.location || 'N/A'}</div>
+            </div>
+            <span class="badge bg-info-subtle text-info-emphasis d-none fp-already">Already featured</span>
+        `;
+        ul.appendChild(li);
+        });
+
+        enforceSelectionCap();
+        setSelectedCount();
+    } catch (err) {
+        console.error('loadLeftAjax failed:', err);
+    }
+    }
+
+
+ // ---- Search (AJAX live filter) ----
+    async function loadLeftAjax(term = '') {
+    try {
+        const res = await fetch(`/admin/properties/picker?q=${encodeURIComponent(term)}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        const items = data.items || [];
+        const ul = leftList();
+        ul.innerHTML = '';
+
+        if (!items.length) {
+        ul.innerHTML = '<li class="list-group-item text-muted">No results found.</li>';
+        return;
+        }
+
+        items.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-start gap-3 fp-left-item';
+        li.dataset.id = p.id;
+        li.dataset.ref = p.reference || '';
+        li.dataset.title = p.title || 'Untitled';
+        li.dataset.location = p.location || 'N/A';
+        li.innerHTML = `
+            <div class="form-check mt-1">
+            <input class="form-check-input fp-left-cb" type="checkbox" value="${p.id}">
+            </div>
+            <div class="flex-fill">
+            <div class="fw-semibold fp-line">
+                <span class="text-muted">#</span>${p.reference || ''} — ${p.title || 'Untitled'}
+            </div>
+            <div class="small text-muted d-none d-xl-block">${p.location || 'N/A'}</div>
+            </div>
+            <span class="badge bg-info-subtle text-info-emphasis d-none fp-already">Already featured</span>
+        `;
+        ul.appendChild(li);
+        });
+
+        enforceSelectionCap();
+        setSelectedCount();
+    } catch (err) {
+        console.error('loadLeftAjax failed:', err);
+    }
+    }
+
+    // event listeners
+    const searchEl = $('fp-search');
+    let searchTimer = null;
+
+    $('fp-clear').addEventListener('click', () => {
+    searchEl.value = '';
+    loadLeftAjax('');
+    });
+
+    searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const term = searchEl.value.trim();
+    searchTimer = setTimeout(() => {
+        if (term.length >= 3) loadLeftAjax(term);
+        else if (term.length === 0) loadLeftAjax('');
+    }, 300);
+    });
+
+
+  // ---- Checkbox selection ----
+  leftList().addEventListener('change', e => {
     if (!e.target.classList.contains('fp-left-cb')) return;
-    const cap = Math.max(0, limit - countFeatured());
-    if (cap === 1) {
+    if (Math.max(0, limit - countFeatured()) === 1) {
       const checked = Array.from(leftList().querySelectorAll('.fp-left-cb:checked'));
       if (checked.length > 1) checked.slice(0, -1).forEach(cb => cb.checked = false);
     }
     setSelectedCount();
   });
 
-  // add to featured (right)
+  // ---- Add to featured ----
   addBtn().addEventListener('click', () => {
     const available = Math.max(0, limit - countFeatured());
     const picks = Array.from(leftList().querySelectorAll('.fp-left-cb:checked')).slice(0, available);
-
     picks.forEach(cb => {
       const row = cb.closest('.fp-left-item');
-      const data = { ref: row.dataset.ref, title: row.dataset.title, location: row.dataset.location };
+      const data = {
+        ref: row.dataset.ref,
+        title: row.dataset.title,
+        location: row.dataset.location
+      };
       if (rightList().querySelector(`.fp-right-item[data-ref="${data.ref}"]`)) return;
       rightList().appendChild(createRightLi(data));
       markLeftFeaturedByRef(data.ref);
       cb.checked = false;
     });
-
     setFeaturedCount();
     enforceSelectionCap();
     setSelectedCount();
-
-    // hydrate any newly added refs too
-    hydrateRightFromApi();
   });
 
-  // save
+  // ---- Save ----
   $('fp-save-btn').addEventListener('click', async () => {
-    const refs = getRightRefs();
-    if (refs.length === 0) return alert('Please select at least 1 featured property (max 12).');
-
+    const refs = Array.from(rightList().querySelectorAll('.fp-right-item')).map(li => li.dataset.ref);
+    if (!refs.length) return alert('Please select at least 1 featured property (max 12).');
     try {
       const res = await fetch(saveUrl, {
         method: 'POST',
@@ -336,5 +356,28 @@
     }
   });
 })();
+
+// search (AJAX trigger only when 3+ chars)
+const searchEl = $('fp-search');
+    let searchTimer = null;
+
+    $('fp-clear').addEventListener('click', () => {
+    searchEl.value = '';
+    loadLeftAjax(''); // show all properties again
+    });
+
+    searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const term = searchEl.value.trim();
+
+    searchTimer = setTimeout(() => {
+        if (term.length >= 3) {
+        loadLeftAjax(term);  // fetch filtered results
+        } else if (term.length === 0) {
+        loadLeftAjax('');    // show default list
+        }
+    }, 300);
+    });
+
 </script>
 @endpush
