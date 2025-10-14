@@ -81,24 +81,23 @@
 
 @push('scripts')
 <script>
-/**
- * Featured Modal (self-contained)
- * Requires a route named properties.picker returning JSON:
- *  { items: [{id, reference (uppercased), title, location}, ...] }
- */
-(function(){
-  // 11 seeded refs you gave (cap is 12)
+(function () {
+  // settings
+  const limit = 12;
   const seededRefs = [
     'AMHPRV','NJSLVSC1','JOHAYSLV','LMARSLV','ZAVASLV','TGAALA',
     'TKBDIR-B201','JOTACPSLV','JOMHSLV','VTSVNSLV','ASTRSVSLV'
   ];
-  const limit = 12;
   const pickerUrl = "{{ route('properties.picker') }}";
+  const saveUrl   = "{{ route('admin.featured.save') }}";
 
-  const $ = id => document.getElementById(id);
+  // helpers
+  const $ = (id) => document.getElementById(id);
   const leftList  = () => $('fp-left-list');
   const rightList = () => $('fp-right-list');
   const addBtn    = () => $('fp-add-btn');
+  const token     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+  const apiByRef  = (ref) => new URL(`/api/properties/by-ref/${encodeURIComponent(ref)}`, location.origin).toString();
 
   function countFeatured(){ return rightList().querySelectorAll('li.fp-right-item').length; }
   function setFeaturedCount(){ $('fp-featured-count').textContent = countFeatured(); }
@@ -108,32 +107,31 @@
     enforceSelectionCap();
   }
 
-  function createRightLi({ref, title='Untitled', location='N/A'}) {
+  function createRightLi({ ref, title = 'Untitled', location = 'N/A' }) {
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex align-items-start justify-content-between gap-3 fp-right-item';
     li.dataset.ref = ref;
     li.innerHTML = `
-        <div class="flex-fill">
+      <div class="flex-fill">
         <div class="fw-semibold fp-line">
-            <span class="text-muted">#</span><span class="fp-ref">${ref}</span>
-            — <span class="fp-title">${title}</span>
+          <span class="text-muted">#</span><span class="fp-ref">${ref}</span>
+          — <span class="fp-title">${title}</span>
         </div>
         <div class="small text-muted d-none d-xl-block">
-            <span class="fp-location">${location}</span>
+          <span class="fp-location">${location}</span>
         </div>
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger fp-remove">&times;</button>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger fp-remove">&times;</button>
     `;
     li.querySelector('.fp-remove').addEventListener('click', () => {
-        li.remove();
-        unmarkLeftFeaturedByRef(ref);
-        setFeaturedCount();
-        enforceSelectionCap();
-        setSelectedCount();
+      li.remove();
+      unmarkLeftFeaturedByRef(ref);
+      setFeaturedCount();
+      enforceSelectionCap();
+      setSelectedCount();
     });
     return li;
-    }
-
+  }
 
   function markLeftFeaturedByRef(ref){
     const row = leftList().querySelector(`.fp-left-item[data-ref="${ref}"]`);
@@ -144,19 +142,20 @@
     cb.checked = false;
     cb.disabled = true;
   }
+
   function unmarkLeftFeaturedByRef(ref){
     const row = leftList().querySelector(`.fp-left-item[data-ref="${ref}"]`);
     if (!row) return;
     row.classList.remove('is-featured');
     row.querySelector('.fp-already')?.classList.add('d-none');
     const cb = row.querySelector('.fp-left-cb');
-    cb.disabled = (12 - countFeatured()) <= 0;
+    cb.disabled = (limit - countFeatured()) <= 0;
   }
 
   function enforceSelectionCap(){
-    const cap = Math.max(0, 12 - countFeatured());
+    const cap = Math.max(0, limit - countFeatured());
     const selected = leftList().querySelectorAll('.fp-left-cb:checked').length;
-    leftList().querySelectorAll('.fp-left-cb').forEach(cb=>{
+    leftList().querySelectorAll('.fp-left-cb').forEach(cb => {
       const featured = cb.closest('.fp-left-item').classList.contains('is-featured');
       if (featured) { cb.disabled = true; return; }
       if (cap === 0) cb.disabled = !cb.checked;
@@ -169,7 +168,7 @@
   function renderLeft(items){
     const ul = leftList();
     ul.innerHTML = '';
-    items.forEach(it=>{
+    items.forEach(it => {
       const li = document.createElement('li');
       li.className = 'list-group-item d-flex align-items-start gap-3 fp-left-item';
       li.dataset.id = it.id;
@@ -182,7 +181,8 @@
         </div>
         <div class="flex-fill">
           <div class="fw-semibold fp-line">
-            <span class="text-muted">#</span><span class="fp-ref">${it.reference}</span> — <span class="fp-title">${it.title ?? 'Untitled'}</span>
+            <span class="text-muted">#</span><span class="fp-ref">${it.reference}</span>
+            — <span class="fp-title">${it.title ?? 'Untitled'}</span>
           </div>
           <div class="small text-muted d-none d-xl-block">${it.location ?? 'N/A'}</div>
         </div>
@@ -203,132 +203,84 @@
   async function loadLeftAjax(term){
     const url = new URL(pickerUrl, location.origin);
     if (term) url.searchParams.set('q', term);
-    const res = await fetch(url, { headers: { 'X-Requested-With':'XMLHttpRequest' }});
+    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, credentials: 'same-origin' });
     const data = await res.json();
-    const items = data.items || [];
-    renderLeft(items);
-    // 🔽 add this line:
-    syncFeaturedBadgesWithLeft(items);
+    renderLeft(data.items || []);
+  }
+
+  // hydrate right items by hitting the public API for each ref
+  async function hydrateRightFromApi() {
+    const items = Array.from(document.querySelectorAll('#fp-right-list .fp-right-item'));
+    for (const li of items) {
+      const ref = li.dataset.ref;
+      if (!ref) continue;
+      try {
+        const res = await fetch(apiByRef(ref), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+        if (!res.ok) continue;
+        const payload = await res.json();
+        const row = (payload && (payload.data || payload)) || {};
+
+        li.querySelector('.fp-title')?.replaceChildren(document.createTextNode(row.title || '(no title)'));
+        const loc = row.location || [row.town, (row.region || row.province), row.country].filter(Boolean).join(', ');
+        li.querySelector('.fp-location')?.replaceChildren(document.createTextNode(loc || 'N/A'));
+      } catch (_) {
+        /* keep "(not loaded)" */
+      }
     }
+  }
 
-
-  function syncFeaturedBadgesWithLeft(leftResults) {
-    const leftMap = {};
-    leftResults.forEach(p => { leftMap[p.reference] = p; });
-
-    document.querySelectorAll('#fp-right-list .fp-right-item').forEach(li => {
-        const ref = li.dataset.ref;
-        const match = leftMap[ref];
-
-        const titleEl = li.querySelector('.fp-title');
-        const locEl   = li.querySelector('.fp-location');
-
-        if (match) {
-        if (titleEl) titleEl.textContent = match.title || '(no title)';
-        if (locEl)   locEl.textContent   = match.location || [
-            match.town, match.region, match.country
-        ].filter(Boolean).join(', ') || 'N/A';
-        }
-    });
-    }
-
-    // helper: collect refs from right column
-    function getRightRefs() {
-    return Array.from(document.querySelectorAll('#fp-right-list .fp-right-item'))
-        .map(li => li.dataset.ref)
-        .slice(0, 12); // enforce max 12
-    }
-
-    // handle submit click
-    document.getElementById('fp-save-btn').addEventListener('click', async () => {
-    const refs = getRightRefs();
-    if (refs.length === 0) {
-        alert('Please select at least 1 featured property (max 12).');
-        return;
-    }
-
-    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    try {
-        const res = await fetch("{{ route('admin.featured.save') }}", {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': token,
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ refs })
-        });
-
-        if (!res.ok) throw new Error(await res.text());
-
-        const json = await res.json();
-        alert(`Saved! ${json.count} featured properties updated.`);
-
-        // optionally close modal
-        // bootstrap.Modal.getInstance(document.getElementById('featuredModal')).hide();
-    } catch (e) {
-        console.error(e);
-        alert('Save failed, please try again.');
-    }
-    });
-
-
-
-
-  // one-time seeding of right side
+  // seed right from static refs (first open only)
   function seedRightFromRefs(){
     if (countFeatured() > 0) return;
-    const leftRefs = Array.from(leftList().querySelectorAll('.fp-left-item')).map(li => ({
+
+    // build a quick map of left items for instant fill where possible
+    const left = Array.from(leftList().querySelectorAll('.fp-left-item')).map(li => ({
       ref: li.dataset.ref,
       title: li.dataset.title,
-      location: li.dataset.location,
+      location: li.dataset.location
     }));
+
     seededRefs.forEach(ref => {
-      const match = leftRefs.find(p => p.ref === ref);
+      const match = left.find(p => p.ref === ref);
       const li = match
-        ? createRightLi({ref: match.ref, title: match.title, location: match.location})
-        : createRightLi({ref, title: '(not loaded)', location: '—', offPage: true});
+        ? createRightLi({ ref: match.ref, title: match.title, location: match.location })
+        : createRightLi({ ref, title: '(not loaded)', location: '—' });
       rightList().appendChild(li);
       markLeftFeaturedByRef(ref);
     });
+
     setFeaturedCount();
     enforceSelectionCap();
   }
 
-  // Modal show: load left via AJAX first, then seed right
+  // collect refs from right column
+  function getRightRefs() {
+    return Array.from(rightList().querySelectorAll('.fp-right-item'))
+      .map(li => li.dataset.ref)
+      .slice(0, limit);
+  }
+
+  // events
   document.getElementById('featuredModal').addEventListener('shown.bs.modal', async () => {
     if (leftList().children.length === 0) await loadLeftAjax('');
     seedRightFromRefs();
-    // optional: re-sync once more after seeding
-    // (uses the current left list we just loaded)
-    const currentLeft = Array.from(leftList().querySelectorAll('.fp-left-item')).map(li => ({
-        reference: li.dataset.ref,
-        title: li.dataset.title,
-        location: li.dataset.location
-    }));
-    syncFeaturedBadgesWithLeft(currentLeft);
+    await hydrateRightFromApi(); // fill titles/locations for seeded refs
+    $('fp-search').focus();
+  });
 
-    document.getElementById('fp-search').focus();
-    });
-
-
-  // Search (debounced AJAX)
+  // search
   let searchTimer = null;
-  const searchEl = document.getElementById('fp-search');
-  searchEl.addEventListener('input', ()=>{
+  const searchEl = $('fp-search');
+  $('fp-clear').addEventListener('click', () => { searchEl.value = ''; loadLeftAjax(''); });
+  searchEl.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(()=> loadLeftAjax(searchEl.value.trim()), 300);
-  });
-  document.getElementById('fp-clear').addEventListener('click', ()=>{
-    searchEl.value = '';
-    loadLeftAjax('');
+    searchTimer = setTimeout(() => loadLeftAjax(searchEl.value.trim()), 300);
   });
 
-  // Left selection rules (only one selectable when 11 already featured)
-  leftList().addEventListener('change', e=>{
+  // selection on left
+  leftList().addEventListener('change', (e) => {
     if (!e.target.classList.contains('fp-left-cb')) return;
-    const cap = Math.max(0, 12 - countFeatured());
+    const cap = Math.max(0, limit - countFeatured());
     if (cap === 1) {
       const checked = Array.from(leftList().querySelectorAll('.fp-left-cb:checked'));
       if (checked.length > 1) checked.slice(0, -1).forEach(cb => cb.checked = false);
@@ -336,19 +288,15 @@
     setSelectedCount();
   });
 
-  // Add to featured
-  addBtn().addEventListener('click', ()=>{
+  // add to featured (right)
+  addBtn().addEventListener('click', () => {
     const available = Math.max(0, limit - countFeatured());
     const picks = Array.from(leftList().querySelectorAll('.fp-left-cb:checked')).slice(0, available);
 
     picks.forEach(cb => {
       const row = cb.closest('.fp-left-item');
-      const data = {
-        ref: row.dataset.ref,
-        title: row.dataset.title,
-        location: row.dataset.location
-      };
-      if (rightList().querySelector(`.fp-right-item[data-ref="${data.ref}"]`)) return; // skip dup
+      const data = { ref: row.dataset.ref, title: row.dataset.title, location: row.dataset.location };
+      if (rightList().querySelector(`.fp-right-item[data-ref="${data.ref}"]`)) return;
       rightList().appendChild(createRightLi(data));
       markLeftFeaturedByRef(data.ref);
       cb.checked = false;
@@ -357,6 +305,35 @@
     setFeaturedCount();
     enforceSelectionCap();
     setSelectedCount();
+
+    // hydrate any newly added refs too
+    hydrateRightFromApi();
+  });
+
+  // save
+  $('fp-save-btn').addEventListener('click', async () => {
+    const refs = getRightRefs();
+    if (refs.length === 0) return alert('Please select at least 1 featured property (max 12).');
+
+    try {
+      const res = await fetch(saveUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': token,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ refs })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      alert(`Saved! ${json.count} featured properties updated.`);
+    } catch (e) {
+      console.error(e);
+      alert('Save failed, please try again.');
+    }
   });
 })();
 </script>
