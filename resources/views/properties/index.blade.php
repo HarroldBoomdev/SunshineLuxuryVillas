@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+    use Illuminate\Support\Str;
+@endphp
+
 @section('content')
 
 <!-- Tab UI (MUST be above search bar) -->
@@ -152,20 +156,76 @@
                                 <td class="px-4 py-2 border text-center">
                                     <input type="checkbox" class="property-checkbox" value="{{ $property->id }}">
                                 </td>
-                                <td class="px-4 py-2 border">
+                                <td class="px-4 py-2 border text-center">
                                     @php
-                                        $photos = is_string($property->photos) ? json_decode($property->photos, true) : (is_array($property->photos) ? $property->photos : []);
-                                        $photoUrl = '';
-                                        if (!empty($photos) && is_array($photos)) {
-                                            $photoUrl = is_string($photos[0]) ? $photos[0] : '';
+                                        $raw = $property->photos;
+                                        $thumbUrl = null;
+
+                                        // Collect candidate strings from whatever structure we have
+                                        $candidates = [];
+                                        if (is_array($raw)) {
+                                            foreach ($raw as $item) {
+                                                if (is_string($item)) {
+                                                    $candidates[] = $item;
+                                                } elseif (is_array($item)) {
+                                                    foreach (['url','src','path','thumbnail','original','image','href'] as $k) {
+                                                        if (!empty($item[$k]) && is_string($item[$k])) {
+                                                            $candidates[] = $item[$k];
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } elseif (is_string($raw)) {
+                                            $candidates[] = $raw;
                                         }
+
+                                        // Sanitizer for double-encoded / quoted fragments
+                                        $clean = function (string $s): string {
+                                            $s = trim($s);
+                                            // remove wrapping quotes and odd leading/trailing pieces like "\"[" or "]\""
+                                            $s = preg_replace('/^\s*"\[?/', '', $s);   // leading "\"[  or  "
+                                            $s = preg_replace('/\]?"\s*$/', '', $s);   // trailing ]"  or  "
+                                            // unescape typical JSON escapes
+                                            $s = str_replace(['\\"','\\/','\\u002F'], ['"', '/', '/'], $s);
+                                            return trim($s);
+                                        };
+
+                                        // 1) Try each candidate individually (keeps clean rows working)
+                                        $found = null;
+                                        foreach ($candidates as $cand) {
+                                            $cand = $clean($cand);
+
+                                            // if it already looks like an absolute image URL, use it
+                                            if (preg_match('#^https?://[^\s"\'\]]+\.(?:jpg|jpeg|png|webp|gif)$#i', $cand)) { $found = $cand; break; }
+                                            if (preg_match('#^https?://#i', $cand)) { $found = $cand; break; }
+
+                                            // if the candidate contains an absolute image URL inside, extract it
+                                            if (preg_match('#https?://[^\s"\'\]]+\.(?:jpg|jpeg|png|webp|gif)#i', $cand, $m)) { $found = $m[0]; break; }
+                                        }
+
+                                        // 2) If still nothing, join everything into a blob and search once (handles “fragmented” arrays)
+                                        if (!$found) {
+                                            $blob = $clean(is_array($raw) ? implode('', array_map(fn($v) => is_string($v) ? $v : json_encode($v), $raw)) : (string)$raw);
+                                            if (preg_match('#https?://[^\s"\'\]]+\.(?:jpg|jpeg|png|webp|gif)#i', $blob, $m)) {
+                                                $found = $m[0];
+                                            }
+                                        }
+
+                                        // 3) Finalize URL
+                                        $thumbUrl = $found ?: asset('images/no-image.jpg');
                                     @endphp
-                                    @if (!empty($photoUrl))
-                                        <img src="{{ $photoUrl }}" alt="Thumbnail" style="width:80px; height:auto;">
-                                    @endif
 
-
+                                    <img
+                                        src="{{ $thumbUrl }}"
+                                        alt="Thumbnail"
+                                        loading="lazy"
+                                        style="width:80px;height:60px;object-fit:cover;border-radius:6px;"
+                                        onerror="this.onerror=null;this.src='{{ asset('images/no-image.jpg') }}';"
+                                    >
                                 </td>
+
+
+
                                 <td class="px-4 py-2 border">{{ $property->reference }}</td>
                                 <td class="px-4 py-2 border">{{ $property->title }}</td>
                                 <td class="px-4 py-2 border">{{ $property->location ?? 'N/A' }}</td>
@@ -229,14 +289,28 @@
                                     @endcan
 
                                     @can('property.delete')
-                                        <form action="{{ route('properties.destroy', $property->id) }}" method="POST" class="d-inline">
+                                        {{-- Soft delete (keeps S3) --}}
+                                        <form action="{{ route('properties.destroy', $property->id) }}" method="POST" class="d-inline"
+                                                onsubmit="return confirm('Move to trash?')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')" title="Delete">
-                                                <i class="fa fa-trash"></i>
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Trash">
+                                            <i class="fa fa-trash"></i>
                                             </button>
                                         </form>
-                                    @endcan
+
+                                        {{-- Hard delete (also removes S3) --}}
+                                        <form action="{{ route('properties.destroy', $property->id) }}" method="POST" class="d-inline"
+                                                onsubmit="return confirm('Delete permanently and remove images from S3?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="hard" value="1">
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Delete Forever">
+                                            <i class="fa fa-skull-crossbones"></i>
+                                            </button>
+                                        </form>
+                                        @endcan
+
                                 </td>
                             </tr>
                         @empty

@@ -270,83 +270,104 @@ class PropertiesController extends Controller
 
     public function store(Request $request)
     {
-        // 1) Validate
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'property_description' => 'nullable|string',
-            'property_type' => 'required|string',
-            'floors' => 'nullable|integer',
-            'parkingSpaces' => 'nullable|integer',
-            'bedrooms' => 'nullable|integer',
-            'bathrooms' => 'nullable|integer',
-            'year_construction' => 'nullable|integer',
-            'year_renovation' => 'nullable|integer',
-            'furnished' => 'nullable|string',
-            'reference' => 'nullable|string|max:255',
-            'status' => 'nullable|string',
-            'basement' => 'nullable|string',
-            'orientation' => 'nullable|string',
-            'energyEfficiency' => 'nullable|string',
-            'vat' => 'nullable|string',
-            'price' => 'nullable|numeric',
-            'covered' => 'nullable|numeric',
-            'attic' => 'nullable|numeric',
-            'coveredVeranda' => 'nullable|numeric',
-            'coveredParking' => 'nullable|numeric',
-            'courtyard' => 'nullable|numeric',
-            'plot' => 'nullable|numeric',
-            'roofGarden' => 'nullable|numeric',
-            'uncoveredVeranda' => 'nullable|numeric',
-            'garden' => 'nullable|numeric',
-            'owner' => 'nullable|string',
-            'refId' => 'nullable|string',
-            'region' => 'nullable|string',
-            'town' => 'nullable|string',
-            'address' => 'nullable|string',
+        // 0) Always prove we hit the method
+        // dd(['hit' => 'top-of-store', 'all' => $request->all()]); // <- keep commented unless needed
 
-            // arrays
-            'labels' => 'nullable|array',
-            'image_order' => 'nullable|array',
-            'photos' => 'nullable|array',
+        // 1) Validate (but if it fails, SHOW the errors instead of redirecting)
+        try {
+            $validated = $request->validate([
+                'title'                 => 'required|string|max:255',
+                'property_description'  => 'nullable|string',
+                'property_type'         => 'required|string',
+                'floors'                => 'nullable|integer',
+                'parkingSpaces'         => 'nullable|integer',
+                'bedrooms'              => 'nullable|integer',
+                'bathrooms'             => 'nullable|integer',
+                'year_construction'     => 'nullable|integer',
+                'year_renovation'       => 'nullable|integer',
+                'furnished'             => 'nullable|string',
+                'reference'             => 'required_with:photos|string|max:255',
+                'status'                => 'nullable|string',
+                'orientation'           => 'nullable|string',
+                'energyEfficiency'      => 'nullable|string',
+                'vat'                   => 'nullable|string',
+                'price'                 => 'nullable|numeric',
 
-            'regnum' => 'nullable|string|max:255',
-            'plotnum' => 'nullable|string|max:255',
-            'section' => 'nullable|string|max:255',
-            'sheetPlan' => 'nullable|string|max:255',
-            'titleDead' => 'nullable|in:-,available,in_process,no_title',
-            'share' => 'nullable|numeric',
-            'amenities' => 'nullable|numeric',
-            'airport' => 'nullable|numeric',
-            'sea' => 'nullable|numeric',
-            'publicTransport' => 'nullable|numeric',
-            'schools' => 'nullable|numeric',
-            'resort' => 'nullable|numeric',
+                // Areas (camelCase -> will be mapped)
+                'covered'               => 'nullable|numeric',
+                'plot'                  => 'nullable|numeric',
+                'roofGarden'            => 'nullable|numeric',
+                'attic'                 => 'nullable|numeric',
+                'coveredVeranda'        => 'nullable|numeric',
+                'uncoveredVeranda'      => 'nullable|numeric',
+                'garden'                => 'nullable|numeric',
+                'basement'              => 'nullable|numeric',
+                'courtyard'             => 'nullable|numeric',
+                'coveredParking'        => 'nullable|numeric',
 
-            'titledeed'   => 'nullable|array',
-            'title_deed'  => 'nullable|array',
-            'title_deed.*'=> 'file|image|max:30720',
-        ]);
+                // Owner/loc
+                'owner'                 => 'nullable|string',
+                'refId'                 => 'nullable|string',
+                'region'                => 'nullable|string',
+                'town'                  => 'nullable|string',
+                'address'               => 'nullable|string',
 
-        // 2) JSON-encode array fields
-        foreach (['labels','image_order','photos','floor_plans','titledeed'] as $jsonKey) {
+                // Arrays / JSON
+                'labels'                => 'nullable|array',
+                'image_order'           => 'nullable|array',
+                'photos'                => 'nullable|array',
+
+                // Land
+                'regnum'                => 'nullable|string|max:255',
+                'plotnum'               => 'nullable|string|max:255',
+                'section'               => 'nullable|string|max:255',
+                'sheetPlan'             => 'nullable|string|max:255',
+                'titleDead'             => 'nullable|in:-,available,in_process,no_title',
+                'share'                 => 'nullable|numeric',
+
+                // Distances (camelCase -> will be mapped)
+                'amenities'             => 'nullable|numeric',
+                'airport'               => 'nullable|numeric',
+                'sea'                   => 'nullable|numeric',
+                'publicTransport'       => 'nullable|numeric',
+                'schools'               => 'nullable|numeric',
+                'resort'                => 'nullable|numeric',
+
+                // Files
+                'titledeed'             => 'nullable',
+                'title_deed'            => 'nullable|array',
+                'title_deed.*'          => 'file|image|max:30720',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // ⛔ If validation fails, show exactly what failed
+            dd(['validation_errors' => $e->errors(), 'input' => $request->all()]);
+        }
+
+        // 2) JSON-encode array fields expected as JSON in DB
+        foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
             if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
                 $validated[$jsonKey] = json_encode($validated[$jsonKey]);
             }
         }
 
-        // 3) Uploads + merge
+        // 3) Handle file uploads & merge
         $data = $this->processFileUploads($request, $validated);
 
-        // 4) attach user_id (if needed)
+        // 4) Map camelCase → DB column names (*_m2, *_km)
+        $data = $this->normalizeAreaAndDistanceKeys($data);
+
+        // 5) Attach owner
         $data['user_id'] = auth()->id();
 
-        // 5) Create
+        // 6) Persist
         $property = PropertiesModel::create($data);
 
-        \Log::info('✅ Property saved successfully', ['id' => $property->id]);
+        // dd($property->toArray());
 
+        \Log::info('✅ Property saved successfully', ['id' => $property->id]);
         return redirect()->route('properties.index')->with('success', 'Property added successfully.');
     }
+
 
 
     public function validateRequest(Request $request)
@@ -431,80 +452,115 @@ class PropertiesController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $validatedData = $request->validate([
-                'reference' => 'nullable|string|max:255',
-                'title' => 'nullable|string|max:255',
+            // 1) Validate (mirror store() rules)
+            $validated = $request->validate([
+                'reference'            => 'nullable|string|max:255',
+                'title'                => 'nullable|string|max:255',
                 'property_description' => 'nullable|string',
-                'property_type' => 'nullable|string|max:255',
-                'price' => 'nullable|numeric',
-                'vat' => 'nullable|string|max:255',
-                'owner' => 'nullable|string|max:255',
-                'status' => 'nullable|string|max:255',
-                'bedrooms' => 'nullable|integer',
-                'bathrooms' => 'nullable|integer',
-                'toilets' => 'nullable|integer',
-                'kitchens' => 'nullable|integer',
-                'parkingSpaces' => 'nullable|integer',
-                'furnished' => 'nullable|string|max:255',
-                'orientation' => 'nullable|string|max:255',
-                'floor' => 'nullable|string|max:255',
-                'floors' => 'nullable|integer',
-                'energyEfficiency' => 'nullable|string|max:10',
-                'basement' => 'nullable|numeric',
-                'covered' => 'nullable|numeric',
-                'attic' => 'nullable|numeric',
-                'coveredVeranda' => 'nullable|numeric',
-                'coveredParking' => 'nullable|numeric',
-                'courtyard' => 'nullable|numeric',
-                'roofGarden' => 'nullable|numeric',
-                'uncoveredVeranda' => 'nullable|numeric',
-                'plot' => 'nullable|numeric',
-                'garden' => 'nullable|numeric',
-                'latitude' => 'nullable|numeric',
-                'longitude' => 'nullable|numeric',
-                'accuracy' => 'nullable|string|max:255',
-                'region' => 'nullable|string|max:255',
-                'town' => 'nullable|string|max:255',
-                'address' => 'nullable|string|max:255',
-                'complex' => 'nullable|string|max:255',
-                'street' => 'nullable|string|max:255',
-                'zipcode' => 'nullable|string|max:255',
-                'image_order' => 'nullable|array',
-                'photos'      => 'nullable|array',
-                'labels'      => 'nullable|array',
-                'regnum'        => 'nullable|string|max:255',
-                'plotnum'       => 'nullable|string|max:255',
-                'section'       => 'nullable|string|max:255',
-                'sheetPlan'     => 'nullable|string|max:255',
-                'titleDead'     => 'nullable|in:-,available,in_process,no_title',
-                'share'         => 'nullable|numeric',
-                'amenities'       => 'nullable|numeric',
-                'airport'         => 'nullable|numeric',
-                'sea'             => 'nullable|numeric',
-                'publicTransport' => 'nullable|numeric',
-                'schools'         => 'nullable|numeric',
-                'resort'          => 'nullable|numeric',
-                'titledeed'    => 'nullable|array',
-                'title_deed'   => 'nullable|array',
-                'title_deed.*' => 'file|image|max:30720',
+                'property_type'        => 'nullable|string|max:255',
+                'price'                => 'nullable|numeric',
+                'vat'                  => 'nullable|string|max:255',
+                'owner'                => 'nullable|string|max:255',
+                'status'               => 'nullable|string|max:255',
 
+                'bedrooms'             => 'nullable|integer',
+                'bathrooms'            => 'nullable|integer',
+                'toilets'              => 'nullable|integer',
+                'kitchens'             => 'nullable|integer',
+                'parkingSpaces'        => 'nullable|integer',
+                'furnished'            => 'nullable|string|max:255',
+                'orientation'          => 'nullable|string|max:255',
+                'floor'                => 'nullable|string|max:255',
+                'floors'               => 'nullable|integer',
+                'energyEfficiency'     => 'nullable|string|max:10',
 
+                // Areas (camelCase from form → mapped later)
+                'covered'              => 'nullable|numeric',
+                'plot'                 => 'nullable|numeric',
+                'roofGarden'           => 'nullable|numeric',
+                'attic'                => 'nullable|numeric',
+                'coveredVeranda'       => 'nullable|numeric',
+                'uncoveredVeranda'     => 'nullable|numeric',
+                'garden'               => 'nullable|numeric',
+                'basement'             => 'nullable|numeric',
+                'courtyard'            => 'nullable|numeric',
+                'coveredParking'       => 'nullable|numeric',
+
+                // Location / misc
+                'latitude'             => 'nullable|numeric',
+                'longitude'            => 'nullable|numeric',
+                'accuracy'             => 'nullable|string|max:255',
+                'region'               => 'nullable|string|max:255',
+                'town'                 => 'nullable|string|max:255',
+                'address'              => 'nullable|string|max:255',
+                'complex'              => 'nullable|string|max:255',
+                'street'               => 'nullable|string|max:255',
+                'zipcode'              => 'nullable|string|max:255',
+
+                // Arrays / JSON
+                'image_order'          => 'nullable|array',
+                'photos'               => 'nullable|array',
+                'labels'               => 'nullable|array',
+
+                // Land
+                'regnum'               => 'nullable|string|max:255',
+                'plotnum'              => 'nullable|string|max:255',
+                'section'              => 'nullable|string|max:255',
+                'sheetPlan'            => 'nullable|string|max:255',
+                'titleDead'            => 'nullable|in:-,available,in_process,no_title',
+                'share'                => 'nullable|numeric',
+
+                // Distances (camelCase → mapped later)
+                'amenities'            => 'nullable|numeric',
+                'airport'              => 'nullable|numeric',
+                'sea'                  => 'nullable|numeric',
+                'publicTransport'      => 'nullable|numeric',
+                'schools'              => 'nullable|numeric',
+                'resort'               => 'nullable|numeric',
+
+                // Files
+                // IMPORTANT: titledeed can be empty string or JSON — don't force array
+                'titledeed'            => 'nullable',
+                'title_deed'           => 'nullable|array',
+                'title_deed.*'         => 'file|image|max:30720',
             ]);
 
-            AuditLog::create([
-                'trace_id' => uniqid(),
-                'type' => 'UPDATE',
-                'resource_action' => 'Updated property: ' . $property->reference,
-                'user_name' => auth()->user()->name,
-                'ip_address' => $request->ip(),
-                'date_time' => now(),
-            ]);
-
-            return redirect()->route('properties.show', $id)->with('success', 'Property updated successfully!');
-            } catch (\Exception $e) {
-                \Log::error('Error occurred while updating the property: ' . $e->getMessage());
-                return back()->with('error', 'An unexpected error occurred while updating the property.')->withInput();
+            // 2) JSON-encode array fields that are stored as JSON
+            foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
+                if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
+                    $validated[$jsonKey] = json_encode($validated[$jsonKey]);
+                }
             }
+
+            // 3) Load model
+            $property = PropertiesModel::findOrFail($id);
+
+            // 4) Handle file uploads (merges new + existing)
+            $data = $this->processFileUploads($request, $validated);
+
+            // 5) Map camelCase → DB columns (*_m2, *_km)
+            $data = $this->normalizeAreaAndDistanceKeys($data);
+
+            // 6) Persist
+            $property->update($data);
+
+            // 7) Audit
+            AuditLog::create([
+                'trace_id'        => uniqid(),
+                'type'            => 'UPDATE',
+                'resource_action' => 'Updated property: ' . ($property->reference ?? $property->id),
+                'user_name'       => auth()->user()->name,
+                'ip_address'      => $request->ip(),
+                'date_time'       => now(),
+            ]);
+
+            return redirect()->route('properties.show', $id)
+                ->with('success', 'Property updated successfully!');
+        } catch (\Exception $e) {
+            \Log::error('Error updating property', ['error' => $e->getMessage()]);
+            return back()->with('error', 'An unexpected error occurred while updating the property.')
+                        ->withInput();
+        }
     }
 
 
@@ -562,39 +618,81 @@ class PropertiesController extends Controller
 
     private function processFileUploads(Request $request, array $data)
     {
-        // ----- GALLERY PHOTOS (name="photos[]") -----
+        /* -----------------------------
+        | GALLERY PHOTOS  (to S3)
+        | input name="photos[]" multiple
+        * ----------------------------*/
         $existingPhotos = [];
+
+        // Accept existing JSON/array but keep only non-empty strings (URLs)
         if (!empty($data['photos'])) {
             $decoded = is_array($data['photos']) ? $data['photos'] : json_decode($data['photos'], true);
-            $existingPhotos = is_array($decoded) ? $decoded : [];
-        }
-        if ($request->hasFile('photos')) {
-            foreach ($request->file('photos') as $file) {
-                $path = $file->store('uploads/photos', 'public');
-                $existingPhotos[] = $path;
+            if (is_array($decoded)) {
+                $existingPhotos = collect($decoded)
+                    ->filter(fn ($v) => is_string($v) && trim($v) !== '')
+                    ->values()
+                    ->all();
             }
         }
-        if (!empty($existingPhotos)) {
-            $data['photos'] = json_encode($existingPhotos);
+
+        if ($request->hasFile('photos')) {
+            $files = $request->file('photos');
+            // normalize if a single file was posted without []
+            if ($files instanceof \Illuminate\Http\UploadedFile) {
+                $files = [$files];
+            }
+
+            $folder   = $this->s3FolderFromReference($data);         // e.g. TEST123
+            $basename = (string)($data['reference'] ?? 'img');       // e.g. TEST123
+
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                $ext  = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+                $rand = random_int(1000, 9999);
+                $key  = "{$folder}/{$basename}_{$rand}.{$ext}";
+
+                Storage::disk('s3')->put($key, file_get_contents($file), [
+                    'visibility'   => 'public',
+                    'CacheControl' => 'max-age=31536000, public',
+                    'ContentType'  => $file->getMimeType(),
+                ]);
+
+                $existingPhotos[] = Storage::disk('s3')->url($key);
+            }
         }
 
-        // ----- TITLE DEED IMAGES -----
-        // Hidden ordered list (existing): name="titledeed"
+        // Always save a clean JSON array (even if empty)
+        $existingPhotos = array_values(array_unique(array_filter(
+            $existingPhotos,
+            fn ($v) => is_string($v) && $v !== ''
+        )));
+        $data['photos'] = json_encode($existingPhotos, JSON_UNESCAPED_SLASHES);
+
+
+        /* ------------------------------------
+        | TITLE DEED IMAGES  (stay on public)
+        | input name="title_deed[]" multiple
+        * -----------------------------------*/
         $existingDeeds = [];
         if (!empty($data['titledeed'])) {
             $decoded = is_array($data['titledeed']) ? $data['titledeed'] : json_decode($data['titledeed'], true);
             $existingDeeds = is_array($decoded) ? $decoded : [];
         }
-        // New uploads: name="title_deed[]"
         if ($request->hasFile('title_deed')) {
             foreach ($request->file('title_deed') as $file) {
-                $path = $file->store('uploads/titledeed', 'public');
-                $existingDeeds[] = $path; // appended to the end
+                if (!$file || !$file->isValid()) continue;
+                $path = $file->store('uploads/titledeed', 'public'); // keep local/public
+                $existingDeeds[] = $path;
             }
         }
-        $data['titledeed'] = json_encode($existingDeeds);
+        $data['titledeed'] = json_encode(array_values($existingDeeds), JSON_UNESCAPED_SLASHES);
 
-        // ----- FLOOR PLANS (optional merge) -----
+
+        /* -------------------------------
+        | FLOOR PLANS  (stay on public)
+        | input name="floor_plans[]" multiple
+        * ------------------------------*/
         $existingPlans = [];
         if (!empty($data['floor_plans'])) {
             $decoded = is_array($data['floor_plans']) ? $data['floor_plans'] : json_decode($data['floor_plans'], true);
@@ -602,25 +700,30 @@ class PropertiesController extends Controller
         }
         if ($request->hasFile('floor_plans')) {
             foreach ($request->file('floor_plans') as $file) {
-                $path = $file->store('uploads/floorplans', 'public');
+                if (!$file || !$file->isValid()) continue;
+                $path = $file->store('uploads/floorplans', 'public'); // keep local/public
                 $existingPlans[] = $path;
             }
         }
-        if (!empty($existingPlans)) {
-            $data['floor_plans'] = json_encode($existingPlans);
-        }
+        $data['floor_plans'] = json_encode(array_values($existingPlans), JSON_UNESCAPED_SLASHES);
 
         return $data;
     }
 
-
+    // PropertiesController.php
     public function destroy($id)
     {
-        $property = PropertiesModel::findOrFail($id);
-        $property->delete();
+        $property = \App\Models\PropertiesModel::withTrashed()->findOrFail($id);
 
-        return redirect()->route('properties.index')->with('success', 'Property deleted successfully.');
+        if (request()->boolean('hard')) {
+            $property->forceDelete();                 // triggers deleteS3Assets() via forceDeleted hook
+            return back()->with('status', 'Deleted permanently (S3 cleaned).');
+        }
+
+        $property->delete(); // soft delete
+        return back()->with('status', 'Moved to trash.');
     }
+
 
     public function byReference($ref)
     {
@@ -730,6 +833,51 @@ class PropertiesController extends Controller
 
         return response()->json(['items' => $properties]);
     }
+
+    private function normalizeAreaAndDistanceKeys(array $data): array
+    {
+        $map = [
+            // Areas
+            'covered'            => 'covered_m2',
+            'plot'               => 'plot_m2',
+            'roofGarden'         => 'roofgarden_m2',
+            'attic'              => 'attic_m2',
+            'coveredVeranda'     => 'covered_veranda_m2',
+            'uncoveredVeranda'   => 'uncovered_veranda_m2',
+            'garden'             => 'garden_m2',
+            'basement'           => 'basement_m2',
+            'courtyard'          => 'courtyard_m2',
+            'coveredParking'     => 'covered_parking_m2',
+
+            // Distances
+            'amenities'          => 'amenities_km',
+            'airport'            => 'airport_km',
+            'sea'                => 'sea_km',
+            'schools'            => 'schools_km',
+            'publicTransport'    => 'public_transport_km',
+            'resort'             => 'resort_km',
+        ];
+
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $data)) {
+                $data[$to] = $data[$from];
+                unset($data[$from]);
+            }
+        }
+
+        return $data;
+    }
+
+    private function s3FolderFromReference(array $data): string
+    {
+        $ref = (string)($data['reference'] ?? '');
+        // keep only safe characters (A-Z, 0-9, _ and -)
+        $folder = preg_replace('/[^A-Za-z0-9_\-]/', '', $ref);
+        return $folder !== '' ? strtoupper($folder) : 'MISC';
+    }
+
+
+
 
 
 
