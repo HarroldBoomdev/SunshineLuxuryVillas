@@ -84,11 +84,14 @@
                 <div class="row">
                     @include('forms.property.areas')
                 </div>
+                <div class="row">
+                    @include('forms.property.gallery')
+                </div>
                 <!-- <div class="row">
                     @include('forms.property.facilities')
                 </div> -->
                 <div class="row">
-                    @include('forms.property.gallery')
+                    @include('forms.property.floorplans')
                 </div>
                 <div class="row">
                     @include('forms.property.notes')
@@ -102,7 +105,7 @@
                     @include('forms.property.owner')
                 </div>
                 <div class="row">
-                    @include('forms.property.location')
+                    <!-- @include('forms.property.location') -->
                 </div>
                 <div class="row">
                     @include('forms.property.map')
@@ -117,7 +120,7 @@
                     @include('forms.property.features')
                 </div>
                 <div class="row">
-                    @include('forms.property.floorplans')
+                    @include('forms.property.status')
                 </div>
 
             </div>

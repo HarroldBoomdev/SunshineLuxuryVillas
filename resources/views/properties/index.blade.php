@@ -128,6 +128,37 @@
         <!-- Content loaded via AJAX will appear here -->
     </div>
 
+    @php
+        $currentTab = request('tab', 'all');
+    @endphp
+
+    <ul class="nav nav-pills mb-3">
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'all' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'all']) }}">
+            All ({{ $counts['all'] ?? 0 }})
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'active' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'active']) }}">
+            Active ({{ $counts['active'] ?? 0 }})
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'not_active' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'not_active']) }}">
+            Not Active ({{ $counts['not_active'] ?? 0 }})
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'featured' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'featured']) }}">
+            Featured Logs ({{ $counts['featured'] ?? 0 }})
+            </a>
+        </li>
+    </ul>
+
 
 
     <div id="properties-table">

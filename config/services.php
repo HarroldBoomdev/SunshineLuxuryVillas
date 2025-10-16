@@ -31,4 +31,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'frontend_api' => [
+        'base'    => env('FRONTEND_API_BASE', 'https://api.sunshineluxuryvillas.co.uk/api'),
+        'key'     => env('FRONTEND_API_KEY', null),   // leave null if no token is required
+        'timeout' => env('FRONTEND_API_TIMEOUT', 20), // seconds
+    ],
+
+
+
 ];

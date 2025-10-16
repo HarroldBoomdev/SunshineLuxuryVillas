@@ -8,88 +8,60 @@ class PropertyResource extends JsonResource
 {
     public function toArray($request)
     {
-        // 1) Start with ALL raw DB attributes (every column except $hidden)
-        $attrs = $this->resource->attributesToArray();
+        // ✅ Always include ALL attributes loaded from the database
+        $attrs = $this->resource->toArray();
 
-        // 2) Alias camelCase <-> snake_case so whichever has data fills the other
-        $aliases = [
-            // layout / counts
-            'livingRooms'        => 'living_rooms',
-            'parkingSpaces'      => 'parking_spaces',
-            'yearConstruction'   => 'year_construction',
-            'yearRenovation'     => 'year_renovation',
-            'energyEfficiency'   => 'energy_efficiency',
-            'publicTransport'    => 'public_transport',
-            'coveredVeranda'     => 'covered_veranda',
-            'uncoveredVeranda'   => 'uncovered_veranda',
-            'roofGarden'         => 'roof_garden',
-            // legal / misc
-            'sheetPlan'          => 'sheetplan',
-            'titleDead'          => 'title_deed',
-            'titledeed'          => 'title_deed',
+        // ✅ Force include missing custom columns (if model has accessors)
+        $extra = [
+            'floors'                => $this->floors ?? null,
+            'parkingSpaces'         => $this->parkingSpaces ?? null,
+            'year_construction'     => $this->year_construction ?? null,
+            'year_renovation'       => $this->year_renovation ?? null,
+            'energyEfficiency'      => $this->energyEfficiency ?? null,
+            'owner'                 => $this->owner ?? null,
+            'refId'                 => $this->refId ?? null,
+            'address'               => $this->address ?? null,
+            'labels'                => $this->labels ?? null,
+            'image_order'           => $this->image_order ?? null,
+            'facilities'            => $this->facilities ?? null,
+            'titledeed'             => $this->titledeed ?? null,
+            'property_status'       => $this->property_status ?? null,
+            'published_at'          => $this->published_at ?? null,
+            'external_slug'         => $this->external_slug ?? null,
+
+            // Areas
+            'covered_m2'            => $this->covered_m2 ?? null,
+            'plot_m2'               => $this->plot_m2 ?? null,
+            'roofgarden_m2'         => $this->roofgarden_m2 ?? null,
+            'attic_m2'              => $this->attic_m2 ?? null,
+            'covered_veranda_m2'    => $this->covered_veranda_m2 ?? null,
+            'uncovered_veranda_m2'  => $this->uncovered_veranda_m2 ?? null,
+            'garden_m2'             => $this->garden_m2 ?? null,
+            'basement_m2'           => $this->basement_m2 ?? null,
+            'courtyard_m2'          => $this->courtyard_m2 ?? null,
+            'covered_parking_m2'    => $this->covered_parking_m2 ?? null,
+
+            // Distances
+            'amenities_km'          => $this->amenities_km ?? null,
+            'airport_km'            => $this->airport_km ?? null,
+            'sea_km'                => $this->sea_km ?? null,
+            'public_transport_km'   => $this->public_transport_km ?? null,
+            'schools_km'            => $this->schools_km ?? null,
+            'resort_km'             => $this->resort_km ?? null,
+
+            // Land
+            'regnum'                => $this->regnum ?? null,
+            'plotnum'               => $this->plotnum ?? null,
+            'section'               => $this->section ?? null,
+            'sheetPlan'             => $this->sheetPlan ?? null,
+            'titleDead'             => $this->titleDead ?? null,
+            'share'                 => $this->share ?? null,
         ];
-        foreach ($aliases as $a => $b) {
-            $aHas = array_key_exists($a, $attrs) && $this->filled($attrs[$a]);
-            $bHas = array_key_exists($b, $attrs) && $this->filled($attrs[$b]);
-            if ($aHas && !$bHas) $attrs[$b] = $attrs[$a];
-            if ($bHas && !$aHas) $attrs[$a] = $attrs[$b];
-        }
 
-        // 3) Normalize list-like fields to arrays (tolerates double-encoded JSON)
-        $attrs['photos']        = $this->normalizeList($attrs['photos']        ?? null);
-        $attrs['labels']        = $this->normalizeList($attrs['labels']        ?? null);
-        $attrs['features']      = $this->normalizeList($attrs['features']      ?? null);
-        $attrs['facilities']    = $this->normalizeList($attrs['facilities']    ?? null);
-        $attrs['floor_plans']   = $this->normalizeList($attrs['floor_plans']   ?? null);
-        $attrs['youtube_links'] = $this->normalizeList($attrs['youtube_links'] ?? null);
-
-        // 4) Derive cover photo from photos (DB has no 'photo' column)
-        $attrs['photo'] = $attrs['photos'][0] ?? null;
-
-        // 5) Location fallback "Town, Province/Region"
-        if (empty($attrs['location'])) {
-            $town     = $attrs['town']     ?? null;
-            $province = $attrs['province'] ?? ($attrs['region'] ?? null);
-            $attrs['location'] = trim(($town ? $town . ', ' : '') . ($province ?? ''));
-        }
-
-        // 6) Description fallback (use description if property_description empty)
-        if (!$this->filled($attrs['property_description'] ?? null) && $this->filled($attrs['description'] ?? null)) {
-            $attrs['property_description'] = $attrs['description'];
-        }
-
-        // 7) Coords: accept multiple source columns + normalize decimals/ranges
-        $latRaw = $attrs['latitude']
-            ?? ($attrs['lat']        ?? null)
-            ?? ($attrs['latitute']   ?? null)  // common typos
-            ?? ($attrs['latittude']  ?? null)
-            ?? ($attrs['latitud']    ?? null)
-            ?? ($attrs['geo_lat']    ?? null);
-
-        $lngRaw = $attrs['longitude']
-            ?? ($attrs['lng']        ?? null)
-            ?? ($attrs['long']       ?? null)
-            ?? ($attrs['lon']        ?? null)
-            ?? ($attrs['longtitude'] ?? null)
-            ?? ($attrs['geo_lng']    ?? null);
-
-        $norm = static function ($v) {
-            if ($v === null) return null;
-            $n = str_replace(',', '.', trim((string)$v));
-            return is_numeric($n) ? (float)$n : null;
-        };
-
-        $lat = $norm($latRaw);
-        $lng = $norm($lngRaw);
-        if (!($lat >= -90 && $lat <= 90))   $lat = null;
-        if (!($lng >= -180 && $lng <= 180)) $lng = null;
-
-        $attrs['latitude']  = $lat;
-        $attrs['longitude'] = $lng;
-
-        // 8) Done
-        return ['data' => $attrs];
+        // ✅ Merge extras into attrs
+        return array_merge($attrs, $extra);
     }
+
 
     /** Helper: treat empty strings as not filled */
     private function filled($v): bool

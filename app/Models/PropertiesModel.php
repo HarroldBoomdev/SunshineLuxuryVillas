@@ -72,6 +72,9 @@ class PropertiesModel extends Model
         // JSON fields
         'facilities',
         'titledeed',
+        'property_status',
+        'published_at',
+        'external_slug',
     ];
 
     protected $casts = [
@@ -107,6 +110,7 @@ class PropertiesModel extends Model
 
         'share'        => 'float',
         'movedinReady' => 'date',
+        'published_at' => 'datetime',
     ];
 
     /* -----------------------------------------------------------------
@@ -288,4 +292,17 @@ class PropertiesModel extends Model
     public function getCoveredVerandaAttribute($value)  { return $this->attributes['coveredVeranda']  ?? $value; }
     public function getUncoveredVerandaAttribute($value){ return $this->attributes['uncoveredVeranda']?? $value; }
     public function getPublicTransportAttribute($value) { return $this->attributes['publicTransport'] ?? $value; }
+    public function scopeActive($q)
+    {
+        return $q->where('property_status', 'Active');
+    }
+
+    public function scopeBlind($q)
+    {
+        return $q->where(function ($qq) {
+            $qq->whereNull('property_status')->orWhere('property_status', '');
+        });
+    }
+
+
 }

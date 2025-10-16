@@ -15,6 +15,7 @@ use App\Exports\PropertiesExport;
 use Maatwebsite\Excel\Facades\Excel;
 use ZipArchive;
 use Intervention\Image\Facades\Image;
+use App\Services\FrontendSyncService;
 
 class PropertiesController extends Controller
 {
@@ -124,6 +125,28 @@ class PropertiesController extends Controller
                         break;
                 }
             });
+            // ===== TAB FILTERS =====
+            $tab = $request->query('tab', 'all'); // default to "all"
+
+            switch ($tab) {
+                case 'active':
+                    $query->where('property_status', 'active');
+                    break;
+
+                case 'not_active':
+                    $query->where(function ($q) {
+                        $q->whereNull('property_status')
+                        ->orWhere('property_status', 'none');
+                    });
+                    break;
+
+                case 'featured':
+                    $query->where('is_featured', 1);
+                    break;
+
+                // 'all' shows everything
+            }
+
         }
 
         // Log the query to see what is being executed
@@ -270,10 +293,7 @@ class PropertiesController extends Controller
 
     public function store(Request $request)
     {
-        // 0) Always prove we hit the method
-        // dd(['hit' => 'top-of-store', 'all' => $request->all()]); // <- keep commented unless needed
-
-        // 1) Validate (but if it fails, SHOW the errors instead of redirecting)
+        // 1) Validate (show errors instead of redirecting)
         try {
             $validated = $request->validate([
                 'title'                 => 'required|string|max:255',
@@ -283,8 +303,11 @@ class PropertiesController extends Controller
                 'parkingSpaces'         => 'nullable|integer',
                 'bedrooms'              => 'nullable|integer',
                 'bathrooms'             => 'nullable|integer',
+
+                // ✅ years with constraint (renovation >= construction)
                 'year_construction'     => 'nullable|integer',
-                'year_renovation'       => 'nullable|integer',
+                'year_renovation'       => 'nullable|integer|gte:year_construction',
+
                 'furnished'             => 'nullable|string',
                 'reference'             => 'required_with:photos|string|max:255',
                 'status'                => 'nullable|string',
@@ -337,9 +360,12 @@ class PropertiesController extends Controller
                 'titledeed'             => 'nullable',
                 'title_deed'            => 'nullable|array',
                 'title_deed.*'          => 'file|image|max:30720',
+
+                // ✅ Property Status: '' (None) or 'Active'
+                // The trailing comma in 'in:Active,' allows empty string.
+                'property_status'       => 'nullable|in:Active,',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // ⛔ If validation fails, show exactly what failed
             dd(['validation_errors' => $e->errors(), 'input' => $request->all()]);
         }
 
@@ -359,14 +385,28 @@ class PropertiesController extends Controller
         // 5) Attach owner
         $data['user_id'] = auth()->id();
 
-        // 6) Persist
+        // ✅ 6) Ensure property_status is set to '' when “None” is chosen
+        $data['property_status'] = $request->input('property_status', ''); // '' = None, 'Active' = publish
+
+        // (Optional) if you want your “Website Live” column to mirror this immediately:
+        if (array_key_exists('is_live', (new \App\Models\PropertiesModel)->getAttributes())) {
+            $data['is_live'] = ($data['property_status'] === 'Active');
+        }
+
+        // 7) Persist
         $property = PropertiesModel::create($data);
 
-        // dd($property->toArray());
+        // ✅ 8) (Next step) If Active, we’ll sync to the frontend API.
+        // For now we just leave a placeholder; we’ll add the Job after you confirm this step works.
+        // if ($property->property_status === 'Active') {
+        //     SyncPropertyToFrontend::dispatch($property->id);
+        // }
 
         \Log::info('✅ Property saved successfully', ['id' => $property->id]);
         return redirect()->route('properties.index')->with('success', 'Property added successfully.');
+
     }
+
 
 
 
@@ -449,118 +489,114 @@ class PropertiesController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, PropertiesModel $property)
     {
         try {
-            // 1) Validate (mirror store() rules)
             $validated = $request->validate([
-                'reference'            => 'nullable|string|max:255',
-                'title'                => 'nullable|string|max:255',
-                'property_description' => 'nullable|string',
-                'property_type'        => 'nullable|string|max:255',
-                'price'                => 'nullable|numeric',
-                'vat'                  => 'nullable|string|max:255',
-                'owner'                => 'nullable|string|max:255',
-                'status'               => 'nullable|string|max:255',
+                'title'                 => 'required|string|max:255',
+                'property_description'  => 'nullable|string',
+                'property_type'         => 'required|string',
+                'floors'                => 'nullable|integer',
+                'parkingSpaces'         => 'nullable|integer',
+                'bedrooms'              => 'nullable|integer',
+                'bathrooms'             => 'nullable|integer',
 
-                'bedrooms'             => 'nullable|integer',
-                'bathrooms'            => 'nullable|integer',
-                'toilets'              => 'nullable|integer',
-                'kitchens'             => 'nullable|integer',
-                'parkingSpaces'        => 'nullable|integer',
-                'furnished'            => 'nullable|string|max:255',
-                'orientation'          => 'nullable|string|max:255',
-                'floor'                => 'nullable|string|max:255',
-                'floors'               => 'nullable|integer',
-                'energyEfficiency'     => 'nullable|string|max:10',
+                // years with constraint (renovation >= construction)
+                'year_construction'     => 'nullable|integer',
+                'year_renovation'       => 'nullable|integer|gte:year_construction',
 
-                // Areas (camelCase from form → mapped later)
-                'covered'              => 'nullable|numeric',
-                'plot'                 => 'nullable|numeric',
-                'roofGarden'           => 'nullable|numeric',
-                'attic'                => 'nullable|numeric',
-                'coveredVeranda'       => 'nullable|numeric',
-                'uncoveredVeranda'     => 'nullable|numeric',
-                'garden'               => 'nullable|numeric',
-                'basement'             => 'nullable|numeric',
-                'courtyard'            => 'nullable|numeric',
-                'coveredParking'       => 'nullable|numeric',
+                'furnished'             => 'nullable|string',
+                'reference'             => 'required_with:photos|string|max:255',
+                'status'                => 'nullable|string',
+                'orientation'           => 'nullable|string',
+                'energyEfficiency'      => 'nullable|string',
+                'vat'                   => 'nullable|string',
+                'price'                 => 'nullable|numeric',
 
-                // Location / misc
-                'latitude'             => 'nullable|numeric',
-                'longitude'            => 'nullable|numeric',
-                'accuracy'             => 'nullable|string|max:255',
-                'region'               => 'nullable|string|max:255',
-                'town'                 => 'nullable|string|max:255',
-                'address'              => 'nullable|string|max:255',
-                'complex'              => 'nullable|string|max:255',
-                'street'               => 'nullable|string|max:255',
-                'zipcode'              => 'nullable|string|max:255',
+                // Areas (camelCase -> will be mapped)
+                'covered'               => 'nullable|numeric',
+                'plot'                  => 'nullable|numeric',
+                'roofGarden'            => 'nullable|numeric',
+                'attic'                 => 'nullable|numeric',
+                'coveredVeranda'        => 'nullable|numeric',
+                'uncoveredVeranda'      => 'nullable|numeric',
+                'garden'                => 'nullable|numeric',
+                'basement'              => 'nullable|numeric',
+                'courtyard'             => 'nullable|numeric',
+                'coveredParking'        => 'nullable|numeric',
+
+                // Owner/loc
+                'owner'                 => 'nullable|string',
+                'refId'                 => 'nullable|string',
+                'region'                => 'nullable|string',
+                'town'                  => 'nullable|string',
+                'address'               => 'nullable|string',
 
                 // Arrays / JSON
-                'image_order'          => 'nullable|array',
-                'photos'               => 'nullable|array',
-                'labels'               => 'nullable|array',
+                'labels'                => 'nullable|array',
+                'image_order'           => 'nullable|array',
+                'photos'                => 'nullable|array',
 
                 // Land
-                'regnum'               => 'nullable|string|max:255',
-                'plotnum'              => 'nullable|string|max:255',
-                'section'              => 'nullable|string|max:255',
-                'sheetPlan'            => 'nullable|string|max:255',
-                'titleDead'            => 'nullable|in:-,available,in_process,no_title',
-                'share'                => 'nullable|numeric',
+                'regnum'                => 'nullable|string|max:255',
+                'plotnum'               => 'nullable|string|max:255',
+                'section'               => 'nullable|string|max:255',
+                'sheetPlan'             => 'nullable|string|max:255',
+                'titleDead'             => 'nullable|in:-,available,in_process,no_title',
+                'share'                 => 'nullable|numeric',
 
-                // Distances (camelCase → mapped later)
-                'amenities'            => 'nullable|numeric',
-                'airport'              => 'nullable|numeric',
-                'sea'                  => 'nullable|numeric',
-                'publicTransport'      => 'nullable|numeric',
-                'schools'              => 'nullable|numeric',
-                'resort'               => 'nullable|numeric',
+                // Distances (camelCase -> will be mapped)
+                'amenities'             => 'nullable|numeric',
+                'airport'               => 'nullable|numeric',
+                'sea'                   => 'nullable|numeric',
+                'publicTransport'       => 'nullable|numeric',
+                'schools'               => 'nullable|numeric',
+                'resort'                => 'nullable|numeric',
 
                 // Files
-                // IMPORTANT: titledeed can be empty string or JSON — don't force array
-                'titledeed'            => 'nullable',
-                'title_deed'           => 'nullable|array',
-                'title_deed.*'         => 'file|image|max:30720',
+                'titledeed'             => 'nullable',
+                'title_deed'            => 'nullable|array',
+                'title_deed.*'          => 'file|image|max:30720',
+
+                // Property Status: '' (None) or 'Active'
+                'property_status'       => 'nullable|in:Active,',
             ]);
-
-            // 2) JSON-encode array fields that are stored as JSON
-            foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
-                if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
-                    $validated[$jsonKey] = json_encode($validated[$jsonKey]);
-                }
-            }
-
-            // 3) Load model
-            $property = PropertiesModel::findOrFail($id);
-
-            // 4) Handle file uploads (merges new + existing)
-            $data = $this->processFileUploads($request, $validated);
-
-            // 5) Map camelCase → DB columns (*_m2, *_km)
-            $data = $this->normalizeAreaAndDistanceKeys($data);
-
-            // 6) Persist
-            $property->update($data);
-
-            // 7) Audit
-            AuditLog::create([
-                'trace_id'        => uniqid(),
-                'type'            => 'UPDATE',
-                'resource_action' => 'Updated property: ' . ($property->reference ?? $property->id),
-                'user_name'       => auth()->user()->name,
-                'ip_address'      => $request->ip(),
-                'date_time'       => now(),
-            ]);
-
-            return redirect()->route('properties.show', $id)
-                ->with('success', 'Property updated successfully!');
-        } catch (\Exception $e) {
-            \Log::error('Error updating property', ['error' => $e->getMessage()]);
-            return back()->with('error', 'An unexpected error occurred while updating the property.')
-                        ->withInput();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            dd(['validation_errors' => $e->errors(), 'input' => $request->all()]);
         }
+
+        // JSON-encode array fields expected as JSON in DB
+        foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
+            if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
+                $validated[$jsonKey] = json_encode($validated[$jsonKey]);
+            }
+        }
+
+        // Handle file uploads & merge
+        $data = $this->processFileUploads($request, $validated);
+
+        // Map camelCase → DB columns (*_m2, *_km)
+        $data = $this->normalizeAreaAndDistanceKeys($data);
+
+        // Ensure property_status is set ('' when “None”)
+        $data['property_status'] = $request->input('property_status', '');
+
+        // (Optional) mirror to is_live if you want the list icon to reflect status
+        if (array_key_exists('is_live', $property->getAttributes())) {
+            $data['is_live'] = ($data['property_status'] === 'Active');
+        }
+
+        $property->update($data);
+
+        // (Next step) publish/unpublish sync job will be triggered here.
+        // if ($property->property_status === 'Active') {
+        //     SyncPropertyToFrontend::dispatch($property->id);
+        // } else {
+        //     SyncPropertyToFrontend::dispatch($property->id); // will unpublish
+        // }
+
+        \Log::info('✅ Property updated successfully', ['id' => $property->id]);
+        return redirect()->route('properties.index')->with('success', 'Property updated successfully.');
     }
 
 

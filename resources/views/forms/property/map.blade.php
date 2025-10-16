@@ -30,6 +30,7 @@
 
 <div class="card p-3">
   <h4>Map</h4>
+  
   <div class="mb-3 position-relative">
     <input type="text" id="mapSearch" class="form-control" placeholder="Search for a place (e.g., Nicosia, Larnaca)">
     <div id="suggestions" class="suggestion-box d-none"></div>

@@ -15,25 +15,97 @@ class PropertiesController extends Controller
     public function apiIndex(Request $request)
     {
         $perPage = $request->input('per_page', 12);
+        $full    = $request->boolean('full');
 
-        $query = PropertiesModel::query()->select([
-            'id',
-            'title',
-            'price',
-            'bedrooms',
-            'bathrooms',
-            'property_type',
-            'location',
-            'province',
-            'town',
-            'built_area',
-            'plot_area',
-            'reference',
-            'url',
-            'property_description',
-            'photos',
-        ]);
+        $query = PropertiesModel::query();
 
+        if ($full) {
+            // ✅ Return all important columns (the exact list you specified)
+            $query->select([
+                'id',
+                'title',
+                'property_description',
+                'reference',
+                'property_type',
+                'floors',
+                'parkingSpaces',
+                'bathrooms',
+                'bedrooms',
+                'furnished',
+                'orientation',
+                'year_construction',
+                'year_renovation',
+                'price',
+                'vat',
+                'status',
+                'energyEfficiency',
+                'owner',
+                'refId',
+                'region',
+                'town',
+                'address',
+                'labels',
+                'image_order',
+                'photos',
+                'photo',
+
+                // 🏠 Areas
+                'covered_m2',
+                'plot_m2',
+                'roofgarden_m2',
+                'attic_m2',
+                'covered_veranda_m2',
+                'uncovered_veranda_m2',
+                'garden_m2',
+                'basement_m2',
+                'courtyard_m2',
+                'covered_parking_m2',
+
+                // 🧭 Distances
+                'amenities_km',
+                'airport_km',
+                'sea_km',
+                'public_transport_km',
+                'schools_km',
+                'resort_km',
+
+                // 🧾 Land fields
+                'regnum',
+                'plotnum',
+                'section',
+                'sheetPlan',
+                'titleDead',
+                'share',
+
+                // JSON / meta
+                'facilities',
+                'titledeed',
+                'property_status',
+                'published_at',
+                'external_slug',
+            ]);
+        } else {
+            // Lightweight set (default)
+            $query->select([
+                'id',
+                'title',
+                'price',
+                'bedrooms',
+                'bathrooms',
+                'property_type',
+                'location',
+                'province',
+                'town',
+                'built_area',
+                'plot_area',
+                'reference',
+                'url',
+                'property_description',
+                'photos',
+            ]);
+        }
+
+        // Optional region/province filter
         $region = $request->query('region') ?: $request->query('province');
         if (!empty($region)) {
             $needle = mb_strtolower(trim($region));
@@ -43,11 +115,13 @@ class PropertiesController extends Controller
             });
         }
 
-
         $properties = $query->paginate($perPage);
 
-        return PropertyResource::collection($properties);
+        return \App\Http\Resources\PropertyResource::collection($properties);
     }
+
+
+
 
     public function top()
     {

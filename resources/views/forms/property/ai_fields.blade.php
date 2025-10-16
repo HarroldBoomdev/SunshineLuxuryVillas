@@ -44,6 +44,7 @@
   </div>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const titleInput = document.getElementById('titleInput');
@@ -59,92 +60,153 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function getField(id) {
     const el = document.getElementById(id);
-    return el ? el.value.trim() : '';
+    return el ? (el.value ?? '').toString().trim() : '';
   }
 
+  // Prefer form selects when present
+  function getTown() {
+    const townSel = document.getElementById('town');
+    if (townSel && townSel.value.trim()) return townSel.value.trim();
+    return extractTownFromMap(); // fallback
+  }
+
+  // Prefer Region select; else, parse from map address
+  function getRegion() {
+    const regionSel = document.getElementById('region');
+    if (regionSel && regionSel.value.trim()) return regionSel.value.trim();
+
+    const addr = getField('map_address').toLowerCase();
+    if (!addr) return '';
+
+    // canonical regions
+    const REGIONS = ['Paphos','Limassol','Nicosia','Larnaca','Famagusta','Kyrenia'];
+    for (const r of REGIONS) {
+      const rLower = r.toLowerCase();
+      if (addr.includes(rLower + ' district') || addr.includes(rLower)) {
+        return r;
+      }
+    }
+    return '';
+  }
+
+  // Fallback town extraction from map address (heuristic)
   function extractTownFromMap() {
     const address = getField('map_address');
     if (!address) return '';
-
-    // Try to find a match like: Town, Region, Cyprus
     const parts = address.split(',').map(p => p.trim());
 
-    // Heuristic: get 1st non-numeric part before "District" or "Cyprus"
+    // pick first non-empty, non-numeric that isn't a region/district/country word
+    const blacklist = ['district','cyprus','province'];
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      if (
-        part &&
-        !/^\d+$/.test(part) &&
-        !part.toLowerCase().includes('district') &&
-        !part.toLowerCase().includes('cyprus') &&
-        !part.toLowerCase().includes('province')
-      ) {
-        return part;
-      }
+      if (!part) continue;
+      if (/^\d+$/.test(part)) continue;
+      const lc = part.toLowerCase();
+      if (blacklist.some(w => lc.includes(w))) continue;
+      return part;
     }
-
     return '';
   }
 
   function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
-    const v = parseInt(n) % 100;
+    const v = parseInt(n, 10) % 100;
     return s[(v - 20) % 10] || s[v] || s[0];
   }
 
   function generateTitle() {
-    const type = getField('property_type');
-    const town = extractTownFromMap();
+    const type   = getField('property_type') || getField('proptype') || getField('PropertyType') || ''; // a few safety fallbacks
+    const town   = getTown();
+    const region = getRegion();
 
-    if (!type || !town) return;
+    if (!type) return;
 
-    const generated = `${type} in ${town}`;
-    if (!userEditedTitle) titleInput.value = generated;
+    let generated = '';
+    if (town && region)       generated = `${type} in ${town}, ${region}`;
+    else if (town)            generated = `${type} in ${town}`;
+    else if (region)          generated = `${type} in ${region}`;
+    else                      generated = `${type}`;
+
+    if (!userEditedTitle && generated) titleInput.value = generated;
   }
 
   function generateDescription() {
-    const town = extractTownFromMap();
-    const bedrooms = getField('bedrooms');
-    const bathrooms = getField('bathrooms');
-    const garden = getField('garden');
-    const covered = getField('covered');
-    const floor = getField('floor');
+  const type = getField('property_type');
+  const bedrooms = getField('bedrooms');
+  const bathrooms = getField('bathrooms');
+  const town = getTown();
+  const region = getRegion();
+  const covered = getField('covered');
+  const garden = getField('garden');
+  const pool = getField('pool');
+  const furnished = getField('furnished');
+  const views = getField('views') || getField('view');
+  const status = getField('status');
+  const vat = getField('vat');
 
-    let desc = `This ${bedrooms}-bedroom, ${bathrooms}-bathroom property in ${town} offers`;
+  // --- Overview paragraph ---
+  let desc = `Discover this exceptional ${type || 'property'} located in ${town ? town + ', ' : ''}${region || 'Cyprus'}, offering an ideal blend of comfort and Mediterranean charm.`;
 
-    if (garden) desc += ` a ${garden}m² garden,`;
-    if (covered) desc += ` ${covered}m² of covered area,`;
-    if (floor) desc += ` located on the ${floor}${getOrdinal(floor)} floor,`;
+  // --- Details paragraph ---
+  const details = [];
+  if (bedrooms) details.push(`${bedrooms} spacious bedrooms`);
+  if (bathrooms) details.push(`${bathrooms} modern bathrooms`);
+  if (covered) details.push(`a covered area of approximately ${covered} m²`);
+  if (garden) details.push(`a private garden`);
+  if (pool) details.push(`a swimming pool`);
+  if (views) details.push(`breathtaking ${views.toLowerCase()} views`);
+  if (details.length) desc += ` This home features ${details.join(', ')}.`;
 
-    desc += ` and is ideal for comfortable living.`;
-
-    if (!userEditedDesc) descInput.value = desc;
+  // --- Lifestyle paragraph ---
+  desc += ` Situated in a peaceful and desirable neighborhood, the property provides easy access to local amenities, beaches, and transport links.`;
+  if (region.toLowerCase().includes('paphos')) {
+    desc += ` Within a short drive, you'll find the renowned Coral Bay and the scenic Akamas Peninsula, known for its preserved natural beauty.`;
+  } else if (region.toLowerCase().includes('limassol')) {
+    desc += ` Enjoy proximity to Limassol’s vibrant marina, beaches, and upscale dining venues.`;
+  } else if (region.toLowerCase().includes('nicosia')) {
+    desc += ` Conveniently located near schools, shops, and major city attractions in Nicosia.`;
+  } else if (region.toLowerCase().includes('larnaca')) {
+    desc += ` Minutes away from Larnaca’s promenade and blue-flag beaches, offering an ideal coastal lifestyle.`;
   }
 
-  ['property_type', 'bedrooms', 'bathrooms', 'garden', 'covered', 'floor', 'map_address'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', () => {
-      generateTitle();
-      generateDescription();
-    });
-  });
+  // --- Optional remarks ---
+  if (status && status.toLowerCase().includes('resale')) {
+    desc += `\n\n**NO VAT – this is a resale property!**`;
+  }
+  desc += `\n\nThis property combines luxury, functionality, and the timeless appeal of Mediterranean living.`;
+
+  // --- Specifications section ---
+  let specs = [];
+  if (type) specs.push(`${type}`);
+  if (bedrooms) specs.push(`${bedrooms}-Bedroom`);
+  if (bathrooms) specs.push(`${bathrooms}-Bathroom`);
+  if (views) specs.push(`${views} Views`);
+  if (pool) specs.push(`Private Pool`);
+  if (garden) specs.push(`Private Garden`);
+  if (furnished && furnished !== '-') specs.push(`Furnished: ${furnished}`);
+  if (covered) specs.push(`Covered Area: ${covered} m²`);
+  if (vat && vat !== '-') specs.push(`VAT: ${vat}`);
+  if (region) specs.push(region);
+
+  if (specs.length) {
+    desc += `\n\n**Specifications:**\n` + specs.map(s => `• ${s}`).join('\n');
+  }
+
+  // --- Write to textarea if user didn’t manually edit ---
+  if (!userEditedDesc) descInput.value = desc.trim();
+}
+
 
   // Manual triggers
-  generateTitleBtn.addEventListener('click', () => {
-    userEditedTitle = false;
-    generateTitle();
-  });
-
-  generateDescBtn.addEventListener('click', () => {
-    userEditedDesc = false;
-    generateDescription();
-  });
+  generateTitleBtn.addEventListener('click', () => { userEditedTitle = false; generateTitle(); });
+  generateDescBtn.addEventListener('click', () => { userEditedDesc  = false; generateDescription(); });
 
   // Auto-generate on load
   generateTitle();
   generateDescription();
 });
 </script>
+
 
 
 

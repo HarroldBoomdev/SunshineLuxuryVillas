@@ -335,4 +335,33 @@ document.addEventListener('DOMContentLoaded', function () {
   propertyTypeSelect.addEventListener('change', toggleFloorsField);
   toggleFloorsField(); // Run on load
 });
+
+document.addEventListener('DOMContentLoaded', function () {
+  const yearConstruction = document.getElementById('year_construction');
+  const yearRenovation   = document.getElementById('year_renovation');
+
+  function syncRenovationYears() {
+    if (!yearConstruction || !yearRenovation) return;
+
+    const min = parseInt(yearConstruction.value || '0', 10);
+
+    // Disable & hide renovation options earlier than construction year
+    Array.from(yearRenovation.options).forEach(opt => {
+      if (opt.value === '') return; // N/A
+      const y = parseInt(opt.value, 10);
+      const tooEarly = !!min && y < min;
+      opt.disabled = tooEarly;
+      opt.hidden   = tooEarly;
+    });
+
+    // If currently selected renovation year is invalid, clear it
+    if (min && yearRenovation.value && parseInt(yearRenovation.value, 10) < min) {
+      yearRenovation.value = '';
+    }
+  }
+
+  // run on load & whenever construction year changes
+  syncRenovationYears();
+  yearConstruction?.addEventListener('change', syncRenovationYears);
+});
 </script>
