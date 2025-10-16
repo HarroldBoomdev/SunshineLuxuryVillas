@@ -96,11 +96,6 @@
                             Featured Properties
                         </button>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button type="button" class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#">
-                            Featured Logs
-                        </button>
-                    </div>
 
                 </div>
             </form>
