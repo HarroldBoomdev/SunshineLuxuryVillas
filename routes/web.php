@@ -41,6 +41,9 @@ use App\Http\Middleware\Authenticate as AppAuthenticate;
 use App\Http\Controllers\Reports\HistoricalListingsController;
 use App\Http\Controllers\FeaturedPropertyController;
 
+use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\LocationsController;
+
 Route::get('/check-memory', function () {
     dd(ini_get('memory_limit'));
 });
@@ -367,6 +370,16 @@ Route::middleware('auth')->group(function () {
     })->name('properties.picker');
 
     Route::resource('properties', PropertiesController::class);
+
+    Route::get('/new-property', function () {
+        return view('forms.new-property'); // exactly this path
+    });
+    Route::post('/new-property', [PropertyController::class, 'store'])->name('properties.store');
+
+    Route::get('/locations/regions',    [LocationsController::class, 'regions']);
+    Route::get('/locations/towns',      [LocationsController::class, 'towns']);
+
+    Route::get('/locations/localities', [LocationsController::class, 'localities']);
 
 
 });
