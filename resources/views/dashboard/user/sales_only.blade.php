@@ -1,3 +1,9 @@
+<style>
+  /* keep charts tidy across envs */
+  .chart-fixed { width:100%; max-height:420px; }
+  @media (min-width:1280px){ .chart-fixed{ max-height:380px; } }
+</style>
+
 <div class="py-8">
   <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
     <div class="p-6 bg-white rounded-lg shadow-md">
@@ -34,11 +40,11 @@
       <div class="grid grid-cols-2 gap-4">
         <div class="p-4 bg-gray-100 rounded-lg shadow-md">
           <h3 class="text-lg font-semibold mb-4">Leads by Month</h3>
-          <canvas id="leadChart"></canvas>
+          <canvas id="leadChart" class="chart-fixed"></canvas>
         </div>
         <div class="p-4 bg-gray-100 rounded-lg shadow-md">
           <h3 class="text-lg font-semibold mb-4">Sales by Month</h3>
-          <canvas id="salesChart"></canvas>
+          <canvas id="salesChart" class="chart-fixed"></canvas>
         </div>
       </div>
 
@@ -46,18 +52,18 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <div class="p-4 bg-gray-100 rounded-lg shadow-md">
           <h3 class="text-lg font-semibold mb-4">Sales (Jan–Jun)</h3>
-          <canvas id="sourcePieH1"></canvas>
+          <canvas id="sourcePieH1" class="chart-fixed"></canvas>
         </div>
         <div class="p-4 bg-gray-100 rounded-lg shadow-md">
           <h3 class="text-lg font-semibold mb-4">Sales (Jul–Dec)</h3>
-          <canvas id="sourcePieH2"></canvas>
+          <canvas id="sourcePieH2" class="chart-fixed"></canvas>
         </div>
       </div>
 
       <!-- Comparison Bar Chart -->
       <div class="mt-4 p-4 bg-gray-100 rounded-lg shadow-md">
         <h3 class="text-lg font-semibold mb-4">Sales by Source Comparison (Jan–Jun vs Jul–Dec)</h3>
-        <canvas id="sourceCompareChart"></canvas>
+        <canvas id="sourceCompareChart" class="chart-fixed"></canvas>
       </div>
 
     </div>
@@ -73,9 +79,7 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  /* =====================================================
-   * Existing charts (Lead & Sales)
-   * ===================================================== */
+  /* ===== Existing monthly charts ===== */
   const leadStats  = @json($leadStats);
   const salesStats = @json($salesStats);
 
@@ -83,21 +87,12 @@
   const leadCounts  = months.map(m => leadStats.find(i => i.month === m)?.total ?? 0);
   const salesCounts = months.map(m => salesStats.find(i => i.month === m)?.total ?? 0);
 
-  // Lead Chart
   new Chart(document.getElementById('leadChart'), {
     type: 'bar',
-    data: {
-      labels: months,
-      datasets: [{
-        label: 'Leads',
-        data: leadCounts,
-        backgroundColor: '#34d399'
-      }]
-    },
+    data: { labels: months, datasets: [{ label: 'Leads', data: leadCounts, backgroundColor: '#34d399' }] },
     options: { responsive: true, maintainAspectRatio: true }
   });
 
-  // Sales Chart
   new Chart(document.getElementById('salesChart'), {
     type: 'line',
     data: {
@@ -106,97 +101,54 @@
         label: 'Sales',
         data: salesCounts,
         borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3
+        backgroundColor: 'rgba(59,130,246,0.2)',
+        borderWidth: 2, fill: true, tension: 0.3
       }]
     },
     options: { responsive: true, maintainAspectRatio: true }
   });
 
-  /* =====================================================
-   * Pie Charts (Jan–Jun & Jul–Dec)
-   * ===================================================== */
+  /* ===== Pies + comparison bar ===== */
   const providedH1 = @json($sourcesH1);
   const providedH2 = @json($sourcesH2);
-
-  const pieColors = ['#5AA6F8', '#F6F062', '#E86AF7', '#66E08C', '#F45A5A'];
+  const pieColors = ['#5AA6F8','#F6F062','#E86AF7','#66E08C','#F45A5A'];
 
   function renderPie(canvasId, sourceObj) {
     const labels = Object.keys(sourceObj);
     const data   = Object.values(sourceObj);
     const total  = data.reduce((a,b)=>a+b,0);
-
     return new Chart(document.getElementById(canvasId), {
       type: 'pie',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          backgroundColor: pieColors,
-          borderColor: '#ffffff',
-          borderWidth: 2
-        }]
-      },
+      data: { labels, datasets: [{ data, backgroundColor: pieColors, borderColor:'#fff', borderWidth:2 }] },
       options: {
-        responsive: true,
-        maintainAspectRatio: true,
+        responsive: true, maintainAspectRatio: true,
         plugins: {
           legend: { position: 'bottom' },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const v = ctx.raw ?? 0;
-                const p = total ? (v / total * 100).toFixed(1) : 0;
-                return `${ctx.label}: ${v} (${p}%)`;
-              }
-            }
-          }
+          tooltip: { callbacks: { label: (ctx) => {
+            const v = ctx.raw ?? 0, p = total ? (v/total*100).toFixed(1) : 0;
+            return `${ctx.label}: ${v} (${p}%)`;
+          }}}
         }
       }
     });
   }
-
-  // Render both pies
   renderPie('sourcePieH1', providedH1);
   renderPie('sourcePieH2', providedH2);
 
-  /* =====================================================
-   * Comparison Bar Chart (Jan–Jun vs Jul–Dec)
-   * ===================================================== */
-  const labelsCompare = Object.keys(providedH1);
-  const dataH1 = Object.values(providedH1);
-  const dataH2 = Object.values(providedH2);
-
+  // Grouped bar comparison
   new Chart(document.getElementById('sourceCompareChart'), {
     type: 'bar',
     data: {
-      labels: labelsCompare,
+      labels: Object.keys(providedH1),
       datasets: [
-        {
-          label: 'Jan–Jun',
-          data: dataH1,
-          backgroundColor: 'rgba(99, 179, 237, 0.8)' // blue
-        },
-        {
-          label: 'Jul–Dec',
-          data: dataH2,
-          backgroundColor: 'rgba(244, 114, 182, 0.8)' // pink
-        }
+        { label: 'Jan–Jun', data: Object.values(providedH1), backgroundColor: 'rgba(99,179,237,0.8)' },
+        { label: 'Jul–Dec', data: Object.values(providedH2), backgroundColor: 'rgba(244,114,182,0.8)' }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { position: 'bottom' },
-        tooltip: { mode: 'index', intersect: false }
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1 } },
-        x: { grid: { display: false } }
-      }
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }
     }
   });
 </script>
