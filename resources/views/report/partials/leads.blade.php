@@ -1,38 +1,268 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Lead Summary</title>
-    <style>
-        body { font-family: sans-serif; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #333; padding: 6px; text-align: center; }
-        th { background: #f0f0f0; }
-    </style>
-</head>
-<body>
-    <h2 style="text-align: center;">Lead Summary Report</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Year</th>
-                <th>Month</th>
-                <th>Location</th>
-                <th>Source</th>
-                <th>Count</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data as $row)
-                <tr>
-                    <td>{{ $row['Year'] }}</td>
-                    <td>{{ $row['Month'] }}</td>
-                    <td>{{ $row['Location'] }}</td>
-                    <td>{{ $row['Source'] }}</td>
-                    <td>{{ $row['Count'] }}</td>
+<style>
+  .chart-fixed { width:100%; max-height:420px; }
+  @media (min-width:1280px){ .chart-fixed{ max-height:380px; } }
+  .qbtn { padding: 6px 14px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; border: 1.5px solid #d1d5db; background: #fff; color: #374151; transition: all 0.15s ease; }
+  .qbtn:hover { background: #f3f4f6; }
+  .qbtn.active { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 2px 4px rgba(37,99,235,0.25); }
+</style>
+
+@php
+  // Defensive defaults (prevents 500s if controller ever misses something)
+  $reportYears      = $reportYears      ?? [];
+  $selectedYear     = $selectedYear     ?? now()->year;
+  $leadStats        = $leadStats        ?? [];
+  $salesThisYear    = (int)($salesThisYear    ?? 0);
+  $salesThisQuarter = (int)($salesThisQuarter ?? 0);
+  $quarterTarget    = (int)($quarterTarget    ?? 0);
+  $yearlyTarget     = (int)($yearlyTarget     ?? 1);
+
+  $allLeadsTotal    = (int)($allLeadsTotal    ?? 0);
+  $allLeadsAvg      = (int)($allLeadsAvg      ?? 0);
+  $leadsByLocation  = $leadsByLocation  ?? [];
+  $avgByLocation    = $avgByLocation    ?? [];
+  $leadsBySource    = $leadsBySource    ?? [];
+
+  // Calculate total for the visible “Total Leads (Year)” card safely
+  $totalLeadsSelectedYear = is_array($leadStats)
+      ? array_sum(array_column($leadStats, 'total'))
+      : 0;
+@endphp
+
+<div class="py-8">
+  <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+    <div class="p-6 bg-white rounded-lg shadow-md">
+
+      {{-- Toolbar --}}
+      <div class="mb-6 rounded-lg border border-gray-200 bg-white/90 p-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-800">Leads Report</h2>
+          <p class="text-sm text-gray-500">Use the filters to change what’s shown below.</p>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="flex flex-col">
+            <label for="reportYear" class="text-xs uppercase tracking-wide text-gray-500 mb-1">Year</label>
+            <select id="reportYear" class="border border-gray-300 rounded px-3 py-2 text-sm w-40 md:w-52">
+              @foreach($reportYears as $y)
+                <option value="{{ $y }}" {{ (int)$selectedYear === (int)$y ? 'selected' : '' }}>{{ $y }}</option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {{-- Your KPI cards --}}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center mb-8">
+        <div class="bg-green-500 text-white py-4 rounded-lg shadow-md">
+          <h3 class="text-lg font-bold">Total Sales (This Year)</h3>
+          <p class="text-2xl font-semibold">{{ $salesThisYear }}</p>
+        </div>
+
+        <div class="bg-yellow-500 text-white py-4 rounded-lg shadow-md">
+          <h3 class="text-lg font-bold">Total Leads ({{ $selectedYear }})</h3>
+          <p class="text-2xl font-semibold">{{ $totalLeadsSelectedYear }}</p>
+          <div class="text-xs mt-1 opacity-90">avg {{ $allLeadsAvg }} / month</div>
+        </div>
+
+        <div class="bg-blue-500 text-white py-4 rounded-lg shadow-md">
+          <h3 class="text-lg font-bold">Quarter Target</h3>
+          <p class="text-2xl font-semibold">{{ $salesThisQuarter }}/{{ $quarterTarget }}</p>
+        </div>
+
+        <div class="bg-pink-500 text-white py-4 rounded-lg shadow-md">
+          <h3 class="text-lg font-bold">Year Target Progress</h3>
+          <p class="text-2xl font-semibold">{{ number_format(($salesThisYear / max(1, $yearlyTarget)) * 100, 1) }}%</p>
+        </div>
+      </div>
+
+      {{-- Progress bar --}}
+      <div class="mb-6">
+        <h4 class="text-md font-semibold mb-1">Yearly Sales Target</h4>
+        <div class="w-full bg-gray-300 rounded-full h-4">
+          <div class="bg-green-600 h-4 rounded-full" style="width: {{ min(100, ($salesThisYear / max(1,$yearlyTarget)) * 100) }}%"></div>
+        </div>
+      </div>
+
+      {{-- Monthly Leads chart (your existing interactive block) --}}
+      <div class="p-4 bg-gray-100 rounded-lg shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b pb-2">
+          <h3 id="leadsTitle" class="text-xl font-semibold text-gray-800">Leads January – December</h3>
+          <div id="leadsControls" class="flex flex-wrap gap-2">
+            <button class="qbtn active" data-view="all">All</button>
+            <button class="qbtn" data-view="q1">Q1</button>
+            <button class="qbtn" data-view="q2">Q2</button>
+            <button class="qbtn" data-view="q3">Q3</button>
+            <button class="qbtn" data-view="q4">Q4</button>
+            <button class="qbtn" data-view="compare">Compare</button>
+          </div>
+        </div>
+        <canvas id="leadsBar" class="chart-fixed"></canvas>
+        <div id="leadsCompareGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4" style="display:none;">
+          <div class="bg-white rounded-lg p-3"><h4 class="text-sm font-semibold mb-2">Q1 (Jan–Mar)</h4><canvas id="barQ1" class="chart-fixed"></canvas></div>
+          <div class="bg-white rounded-lg p-3"><h4 class="text-sm font-semibold mb-2">Q2 (Apr–Jun)</h4><canvas id="barQ2" class="chart-fixed"></canvas></div>
+          <div class="bg-white rounded-lg p-3"><h4 class="text-sm font-semibold mb-2">Q3 (Jul–Sep)</h4><canvas id="barQ3" class="chart-fixed"></canvas></div>
+          <div class="bg-white rounded-lg p-3"><h4 class="text-sm font-semibold mb-2">Q4 (Oct–Dec)</h4><canvas id="barQ4" class="chart-fixed"></canvas></div>
+        </div>
+      </div>
+
+      {{-- Simple totals table (optional, DB-only, no hardcode) --}}
+      <div class="p-4 bg-white rounded-lg border border-gray-200 mt-6">
+        <h3 class="text-md font-semibold mb-3">Breakdown ({{ $selectedYear }})</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 class="text-sm font-semibold mb-2 text-gray-700">By Location</h4>
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="text-left p-2 border">Location</th>
+                  <th class="text-right p-2 border">Total</th>
+                  <th class="text-right p-2 border">Avg/Month</th>
                 </tr>
-            @endforeach
-        </tbody>
-    </table>
-</body>
-</html>
+              </thead>
+              <tbody>
+                @foreach(collect($leadsByLocation)->sortKeys() as $loc => $tot)
+                  <tr>
+                    <td class="p-2 border">{{ $loc ?: 'Unknown' }}</td>
+                    <td class="p-2 border text-right">{{ (int)$tot }}</td>
+                    <td class="p-2 border text-right">{{ (int)($avgByLocation[$loc] ?? 0) }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h4 class="text-sm font-semibold mb-2 text-gray-700">By Source</h4>
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="text-left p-2 border">Source</th>
+                  <th class="text-right p-2 border">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach(collect($leadsBySource)->sortKeys() as $src => $tot)
+                  <tr>
+                    <td class="p-2 border">{{ $src ?: 'Unknown' }}</td>
+                    <td class="p-2 border text-right">{{ (int)$tot }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Monthly dataset (pure DB)
+  const leadStats  = @json($leadStats);
+  const monthsFull = leadStats.map(i => i.month);
+  const leadsFull  = leadStats.map(i => i.total);
+
+  const idxByMonth = monthsFull.reduce((acc, m, i) => (acc[m]=i, acc), {});
+  const sliceByMonths = (months) => {
+    const labels = months.filter(m => m in idxByMonth);
+    const data   = labels.map(m => leadsFull[idxByMonth[m]]);
+    return { labels, data };
+  }
+
+  const Q1M = ['January','February','March'];
+  const Q2M = ['April','May','June'];
+  const Q3M = ['July','August','September'];
+  const Q4M = ['October','November','December'];
+
+  const SL_ALL = { labels: monthsFull, data: leadsFull };
+  const SL_Q1  = sliceByMonths(Q1M);
+  const SL_Q2  = sliceByMonths(Q2M);
+  const SL_Q3  = sliceByMonths(Q3M);
+  const SL_Q4  = sliceByMonths(Q4M);
+
+  let leadsBar;
+  function makeBar(canvas, labels, data){
+    return new Chart(canvas, {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Leads', data, backgroundColor: '#34d399' }] },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+        plugins: { legend: { display: true, position: 'top' } }
+      }
+    });
+  }
+  function renderLeads(labels, data){
+    const el = document.getElementById('leadsBar');
+    if (leadsBar) leadsBar.destroy();
+    leadsBar = makeBar(el, labels, data);
+  }
+  renderLeads(SL_ALL.labels, SL_ALL.data);
+
+  const leadsControls = document.getElementById('leadsControls');
+  function showSingle(view){
+    const grid  = document.getElementById('leadsCompareGrid');
+    grid.style.display = 'none';
+    document.getElementById('leadsBar').style.display = 'block';
+    const title = document.getElementById('leadsTitle');
+
+    if (view==='all'){ renderLeads(SL_ALL.labels, SL_ALL.data); title.textContent='Leads January – December'; }
+    if (view==='q1'){  renderLeads(SL_Q1.labels, SL_Q1.data); title.textContent='Leads January – March'; }
+    if (view==='q2'){  renderLeads(SL_Q2.labels, SL_Q2.data); title.textContent='Leads April – June'; }
+    if (view==='q3'){  renderLeads(SL_Q3.labels, SL_Q3.data); title.textContent='Leads July – September'; }
+    if (view==='q4'){  renderLeads(SL_Q4.labels, SL_Q4.data); title.textContent='Leads October – December'; }
+  }
+  const leadsCompareCache = {};
+  function renderLeadsCompare(){
+    document.getElementById('leadsBar').style.display = 'none';
+    const grid = document.getElementById('leadsCompareGrid');
+    grid.style.display = 'grid';
+    [['barQ1',SL_Q1],['barQ2',SL_Q2],['barQ3',SL_Q3],['barQ4',SL_Q4]].forEach(([id,sl])=>{
+      if (!leadsCompareCache[id]) leadsCompareCache[id] = makeBar(document.getElementById(id), sl.labels, sl.data);
+    });
+  }
+  leadsControls.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.qbtn'); if (!btn) return;
+    leadsControls.querySelectorAll('.qbtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.dataset.view;
+    if (v==='compare') { document.getElementById('leadsTitle').textContent='Leads by Quarter'; renderLeadsCompare(); }
+    else { showSingle(v); }
+  });
+
+  // Year dropdown reload (AJAX partial)
+  (function(){
+    const sel = document.getElementById('reportYear');
+    if (!sel) return;
+    sel.addEventListener('change', () => {
+      const y = sel.value;
+      const url = `/report/partials/leads?year=${encodeURIComponent(y)}`;
+      const container = document.getElementById('report-content');
+
+      const csvBtn = document.getElementById('downloadCsvBtn');
+      const pdfBtn = document.getElementById('downloadPdfBtn');
+      if (csvBtn) csvBtn.href = `/reports/export/csv/leads?year=${encodeURIComponent(y)}`;
+      if (pdfBtn) pdfBtn.href = `/reports/export/pdf/leads?year=${encodeURIComponent(y)}`;
+
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.text())
+        .then(html => {
+          const wrap = document.createElement('div');
+          wrap.innerHTML = html;
+          container.replaceChildren(...wrap.childNodes);
+          container.querySelectorAll('script').forEach(old => {
+            const s = document.createElement('script');
+            [...old.attributes].forEach(a => s.setAttribute(a.name, a.value));
+            s.textContent = old.textContent;
+            old.replaceWith(s);
+          });
+        })
+        .catch(() => {
+          container.innerHTML = '<div class="text-red-600 p-4">Could not load data for the selected year.</div>';
+        });
+    });
+  })();
+</script>

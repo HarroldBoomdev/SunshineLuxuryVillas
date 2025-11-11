@@ -44,6 +44,12 @@ use App\Http\Controllers\FeaturedPropertyController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\LocationsController;
 
+use App\Http\Controllers\FeedController;
+
+    // XML Feed
+    Route::get('/feed/properties.xml', [FeedController::class, 'properties'])
+     ->name('feed.properties');
+
 Route::get('/check-memory', function () {
     dd(ini_get('memory_limit'));
 });
@@ -211,6 +217,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/report', [ReportController::class, 'index'])->name('report.index');
     Route::get('/report/section/{section}', [ReportController::class, 'loadSection']);
 
+    Route::get('/report', [ReportController::class, 'index'])->name('report.index');
+    Route::get('/report/partials/leads', [ReportController::class, 'leads'])->name('report.partials.leads');
+
+    // simple partial endpoints the JS will fetch
+    Route::get('/report/partials/leads', [ReportController::class, 'leads'])
+        ->name('report.partials.leads');
+
 
 
     // API doc
@@ -274,15 +287,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/{slug}/edit', [SectionController::class, 'edit'])->name('edit');
         Route::post('/{slug}', [SectionController::class, 'update'])->name('update');
     });
-
-    //Historical report
-    // Route::prefix('report')->group(function () {
-    //     Route::get('/report/historical-listings', [HistoricalListingsController::class, 'index'])
-    // ->name('reports.historical');
-    //     Route::get('/historical-listings', [H::class, 'index'])->name('reports.historical');
-    //     Route::get('/historical-listings.csv', [H::class, 'csv'])->name('reports.historical.csv');
-    //     Route::get('/historical-listings.pdf', [H::class, 'pdf'])->name('reports.historical.pdf');
-    // });
 
 
     Route::middleware(['auth'])->group(function () {
@@ -380,6 +384,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/locations/towns',      [LocationsController::class, 'towns']);
 
     Route::get('/locations/localities', [LocationsController::class, 'localities']);
+
+
+
 
 
 });
