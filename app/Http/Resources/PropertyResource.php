@@ -11,6 +11,11 @@ class PropertyResource extends JsonResource
         // ✅ Always include ALL attributes loaded from the database
         $attrs = $this->resource->toArray();
 
+        // --- FIX: fallback for built_area & plot_area ---
+        $attrs['built_area'] = $this->built_area ?? $this->covered_m2;
+        $attrs['plot_area']  = $this->plot_area  ?? $this->plot_m2;
+
+
         // ✅ Force include missing custom columns (if model has accessors)
         $extra = [
             'floors'                => $this->floors ?? null,
