@@ -120,6 +120,59 @@
     pdfBtn.href = `/reports/export/pdf/${currentReportType}`;
   }
 
+  // Helper: wire year dropdown specifically for LEADS
+  function initLeadsYearHandler() {
+    const sel = document.getElementById('reportYear');
+    if (!sel) return;
+
+    sel.addEventListener('change', function () {
+      const y = this.value;
+      const container = document.getElementById('report-content');
+      if (!container) return;
+
+      // Update download links for this year, for LEADS report
+      const csvBtn = document.getElementById('downloadCsvBtn');
+      const pdfBtn = document.getElementById('downloadPdfBtn');
+      if (csvBtn) csvBtn.href = `/reports/export/csv/leads?year=${encodeURIComponent(y)}`;
+      if (pdfBtn) pdfBtn.href = `/reports/export/pdf/leads?year=${encodeURIComponent(y)}`;
+
+      // Fetch the LEADS partial for the selected year
+      const url = `/report/partials/leads?year=${encodeURIComponent(y)}`;
+      console.log('Fetching leads for year →', y, url);
+
+      fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      })
+      .then(async res => {
+        const html = await res.text();
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        container.replaceChildren(...wrapper.childNodes);
+
+        // Re-run any scripts inside the newly loaded partial
+        container.querySelectorAll('script').forEach(old => {
+          const s = document.createElement('script');
+          [...old.attributes].forEach(a => s.setAttribute(a.name, a.value));
+          s.textContent = old.textContent;
+          old.replaceWith(s);
+        });
+
+        // Re-bind handler for the new <select id="reportYear">
+        initLeadsYearHandler();
+      })
+      .catch(err => {
+        console.error(err);
+        container.innerHTML = `<div class="text-red-600 p-4">
+          Could not load leads data for year <strong>${y}</strong>.<br>
+          <small>${err.message}</small>
+        </div>`;
+      });
+    });
+  }
+
   links.forEach(link => {
     link.addEventListener('click', function (e) {
       e.preventDefault();
@@ -155,7 +208,7 @@
           old.replaceWith(s);
         });
 
-        // example: init demo chart for "properties" if present
+        // Init any report-specific JS
         if (type === 'properties') {
           const ctx = document.getElementById('chart-properties')?.getContext('2d');
           if (ctx) {
@@ -175,6 +228,11 @@
               }
             });
           }
+        }
+
+        if (type === 'leads') {
+          // Wire up the year dropdown whenever the Leads report is loaded
+          initLeadsYearHandler();
         }
       })
       .catch(err => {
@@ -233,16 +291,16 @@
   // -------------------------------
   // Initialize
   // -------------------------------
-  // Restore last selected item if available
   const saved = sessionStorage.getItem('activeReportType');
   const firstLink = document.querySelector('.report-link');
   const target = saved ? document.querySelector(`.report-link[data-type="${saved}"]`) : null;
 
-  if (target) target.click();
-  else {
-    // visually mark the first link as active (no fetch)
+  if (target) {
+    target.click();
+  } else {
     if (firstLink) setActiveLink(firstLink);
     updateDownloadLinks();
   }
 </script>
+
 @endpush

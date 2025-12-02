@@ -105,7 +105,9 @@
 
     <h1>
         Properties
-        <small id="results-count">{{ $properties->total() }} results</small>
+        <small id="results-count">
+            {{ method_exists($properties, 'total') ? $properties->total() : $properties->count() }} results
+        </small>
         @if(request()->filled('bank'))
             <span class="badge bg-info text-dark ms-2">Viewing: {{ request('bank') }}</span>
             <a href="{{ route('properties.index') }}" class="ms-2 text-danger small">Clear filter</a>
@@ -149,7 +151,19 @@
         <li class="nav-item">
             <a class="nav-link {{ $currentTab === 'featured' ? 'active' : '' }}"
             href="{{ route('properties.index', ['tab' => 'featured']) }}">
-            Featured Logs ({{ $counts['featured'] ?? 0 }})
+                Featured Logs ({{ $counts['featured'] ?? 0 }})
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'temp' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'temp']) }}">
+                Temp Delete
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $currentTab === 'logs' ? 'active' : '' }}"
+            href="{{ route('properties.index', ['tab' => 'logs']) }}">
+                Logs
             </a>
         </li>
     </ul>

@@ -45,6 +45,7 @@ use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\LocationsController;
 
 use App\Http\Controllers\FeedController;
+use App\Http\Controllers\PropertyLogController;
 
     // XML Feed
     Route::get('/feed/properties.xml', [FeedController::class, 'properties'])
@@ -125,10 +126,9 @@ Route::middleware('auth')->group(function () {
     // Properties Routes
     Route::resource('properties', PropertiesController::class);
     Route::get('/properties', [PropertiesController::class, 'index'])->name('properties.index');
-    // Route::post('/new-property-form', [PropertiesController::class, 'store'])->name('properties.store');
-    Route::post('/new-property-form', [PropertiesController::class, 'store'])->name('properties.custom_store');
+    Route::post('/new-property', [PropertiesController::class, 'store'])->name('properties.custom_store');
     Route::get('/properties/{id}/edit', [PropertiesController::class, 'edit'])->name('properties.edit');
-    Route::get('/new-property-form', [PropertiesController::class, 'create'])->name('properties.create');
+    Route::get('/new-property', [PropertiesController::class, 'create'])->name('properties.create');
     Route::get('/properties/{id}', [PropertiesController::class, 'show'])->name('properties.show');
     Route::post('/upload-images', [GalleryController::class, 'upload'])->name('gallery.upload');
     Route::post('/upload-plan', [FloorplanController::class, 'upload'])->name('floorplan.upload');
@@ -221,8 +221,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/report/partials/leads', [ReportController::class, 'leads'])->name('report.partials.leads');
 
     // simple partial endpoints the JS will fetch
+    Route::get('/report/partials/leads', [ReportController::class, 'leads']);
     Route::get('/report/partials/leads', [ReportController::class, 'leads'])
         ->name('report.partials.leads');
+
+    Route::get('/reports/{year}', [ReportController::class, 'showYear'])
+    ->name('reports.year');
+    Route::get('/report/partials/leads/{year}', [ReportController::class, 'showYearPartial']);
+
+    Route::get('/reports/api/leads-trend', [ReportController::class, 'leadsTrend'])
+    ->name('reports.api.leads-trend');
+
+    Route::get('/reports/api/portal-comparison', [ReportController::class, 'portalComparison']);
+
+    Route::get('/report/partials/data_comparison', [ReportController::class, 'dataComparisonPartial']);
+
+
 
 
 
@@ -385,6 +399,16 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/locations/localities', [LocationsController::class, 'localities']);
 
+
+
+    Route::middleware(['auth']) // and any other middleware you use
+    ->group(function () {
+        Route::get('/properties/logs', [PropertyLogController::class, 'index'])
+            ->name('properties.logs');
+    });
+
+    Route::get('/properties/logs-tab', [PropertyLogController::class, 'tab'])
+    ->name('properties.logs.tab');
 
 
 

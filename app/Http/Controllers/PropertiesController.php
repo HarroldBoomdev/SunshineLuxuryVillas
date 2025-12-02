@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use App\Http\Resources\PropertyResource;
 use App\Models\PropertiesModel;
@@ -16,6 +17,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use ZipArchive;
 use Intervention\Image\Facades\Image;
 use App\Services\FrontendSyncService;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class PropertiesController extends Controller
 {
@@ -43,6 +46,11 @@ class PropertiesController extends Controller
 
     public function index(Request $request)
     {
+        $currentTab = $request->query('tab', 'all'); // all | active | not_active | featured | logs
+
+        // -----------------------
+        // 1) BASE PROPERTIES QUERY
+        // -----------------------
         $query = PropertiesModel::select(
             'id',
             'title',
@@ -50,7 +58,6 @@ class PropertiesController extends Controller
             'property_type',
             'photos',
             'reference',
-            // 'proptype',
             'bedrooms',
             'bathrooms',
             'price',
@@ -62,12 +69,14 @@ class PropertiesController extends Controller
             'owner'
         );
 
-        // Show only user-owned properties unless admin
+        // Only own properties unless user has full view permission
         if (!auth()->user()->hasPermissionTo('property.view')) {
             $query->where('user_id', auth()->id());
         }
 
-        // Filters
+        // ---------
+        // FILTERS
+        // ---------
         if ($request->filled('reference')) {
             $query->where('reference', 'LIKE', "%{$request->reference}%");
         }
@@ -102,15 +111,17 @@ class PropertiesController extends Controller
             $query->where(function ($subQuery) use ($bank) {
                 switch ($bank) {
                     case 'remu':
-                        $subQuery->where('reference', 'like', '%R')->whereRaw("LENGTH(reference) - LENGTH(REPLACE(reference, 'R', '')) = 1");
+                        $subQuery->where('reference', 'like', '%R')
+                            ->whereRaw("LENGTH(reference) - LENGTH(REPLACE(reference, 'R', '')) = 1");
                         break;
                     case 'altamira':
-                        $subQuery->where('reference', 'like', '%A')->whereRaw("LENGTH(reference) - LENGTH(REPLACE(reference, 'A', '')) = 1");
+                        $subQuery->where('reference', 'like', '%A')
+                            ->whereRaw("LENGTH(reference) - LENGTH(REPLACE(reference, 'A', '')) = 1");
                         break;
                     case 'altia':
                         $subQuery->where(function ($q) {
                             $q->where('reference', 'like', '%ALT')
-                              ->orWhere('reference', 'like', '%AT');
+                            ->orWhere('reference', 'like', '%AT');
                         });
                         break;
                     case 'gogordian':
@@ -118,59 +129,75 @@ class PropertiesController extends Controller
                         break;
                     case 'alpha bank':
                         $subQuery->where('reference', 'like', '%AB')
-                                 ->where('reference', 'not like', '%ABPIR');
+                                ->where('reference', 'not like', '%ABPIR');
                         break;
                     case 'astro bank':
                         $subQuery->where('reference', 'like', '%ABPIR');
                         break;
                 }
             });
-            // ===== TAB FILTERS =====
-            $tab = $request->query('tab', 'all'); // default to "all"
+        }
 
-            switch ($tab) {
-                case 'active':
-                    $query->where('property_status', 'active');
-                    break;
+        // -----------------
+        // TAB FILTERS
+        // -----------------
+        switch ($currentTab) {
+            case 'active':
+                // treat any case of "active" as active
+                $query->whereRaw("LOWER(property_status) = 'active'");
+                break;
 
-                case 'not_active':
-                    $query->where(function ($q) {
-                        $q->whereNull('property_status')
-                        ->orWhere('property_status', 'none');
-                    });
-                    break;
+            case 'not_active':
+                $query->where(function ($q) {
+                    $q->whereNull('property_status')
+                    ->orWhere('property_status', '')
+                    ->orWhereRaw("LOWER(TRIM(property_status)) = 'none'");
+                });
+                break;
 
-                case 'featured':
-                    $query->where('is_featured', 1);
-                    break;
+            case 'featured':
+                $refs = Cache::get('featured_refs', []);
 
-                // 'all' shows everything
-            }
+                if (!empty($refs)) {
+                    $query->whereIn('reference', $refs);
+                } else {
+                    // show nothing if no featured props saved
+                    $query->whereRaw('1 = 0');
+                }
+                break;
+
 
         }
 
-        // Log the query to see what is being executed
-        \Log::info('Query executed: ' . $query->toSql());
-        \Log::info('Bindings: ' . json_encode($query->getBindings()));
-
-        // AJAX response
-        if ($request->ajax()) {
-            $properties = $query->get()->transform(function ($property) {
+        // -------------
+        // AJAX FILTERING
+        // -------------
+        if ($request->ajax() && $currentTab !== 'logs') {
+            $properties = $query->orderByDesc('id')->get()->transform(function ($property) {
                 $property->photos = json_decode($property->photos, true) ?? [];
                 return $property;
             });
 
             return response()->json([
                 'properties' => view('properties.table', compact('properties'))->render(),
-                'total' => count($properties)
+                'total'      => $properties->count(),
             ]);
         }
 
-        // Normal view
-        $query->orderBy('id', 'desc');
-        $properties = $query->paginate(20);
+        // -------------
+        // NORMAL VIEW
+        // -------------
+        $properties = $query->orderByDesc('id')->paginate(20);
 
-        // Property types and countries
+        // Logs paginator – ONLY when on Logs tab
+        $logs = null;
+        if ($currentTab === 'logs') {
+            $logs = \App\Models\PropertyActivityLog::with(['property:id,reference,title', 'user:id,name'])
+                ->orderByDesc('created_at')
+                ->paginate(50);
+        }
+
+        // Property types and countries (same as you already had)
         $propertyTypes = [
             "Apartment", "Bungalow", "Commercial Property", "Investment Property",
             "Penthouse", "Plot", "Studio", "Townhouse", "Villa"
@@ -208,19 +235,32 @@ class PropertiesController extends Controller
             "Yemen", "Zambia", "Zimbabwe"
         ];
 
-        $query->orderBy('id', 'desc');
-        $properties = $query->paginate(20);
-
-        $pickerProps = \App\Models\PropertiesModel::select('id', 'reference', 'title', 'country')
+        $pickerProps = PropertiesModel::select('id', 'reference', 'title', 'country')
             ->orderByDesc('id')
             ->limit(500)
             ->get();
 
-        return view('properties.index', compact('properties', 'propertyTypes', 'countries', 'pickerProps'));
+        $counts = [
+            'all'       => PropertiesModel::count(),
+            'active'    => PropertiesModel::whereRaw("LOWER(property_status) = 'active'")->count(),
+            'not_active'=> PropertiesModel::whereNull('property_status')
+                                ->orWhere('property_status', '')
+                                ->orWhereRaw("LOWER(TRIM(property_status)) = 'none'")
+                                ->count(),
+            'featured'   => count(Cache::get('featured_refs', [])),
+        ];
 
+
+        return view('properties.index', compact(
+            'properties',
+            'logs',
+            'propertyTypes',
+            'countries',
+            'pickerProps',
+            'counts',
+            'currentTab'
+        ));
     }
-
-
 
 
     public function edit($id)
@@ -284,18 +324,21 @@ class PropertiesController extends Controller
 
         if ($request->ajax()) {
             return response()->json([
-                'html' => view('forms.new-property-form', compact('regions'))->render()
+                'html' => view('forms.new-property', compact('regions'))->render()
             ]);
         }
 
-        return view('forms.new-property-form', compact('regions'));
+        return view('forms.new-property', compact('regions'));
     }
 
     public function store(Request $request)
     {
-        // 1) Validate (show errors instead of redirecting)
+        // 1) Validate
         try {
             $validated = $request->validate([
+                // =========================
+                // STEP 1 – BASIC PROPERTY
+                // =========================
                 'title'                 => 'required|string|max:255',
                 'property_description'  => 'nullable|string',
                 'property_type'         => 'required|string',
@@ -304,43 +347,128 @@ class PropertiesController extends Controller
                 'bedrooms'              => 'nullable|integer',
                 'bathrooms'             => 'nullable|integer',
 
-                // ✅ years with constraint (renovation >= construction)
+                // Step 1 extras
+                'poa'                   => 'nullable|boolean',
+                'floor'                 => 'nullable|integer|min:0',
+                'title_deeds'           => 'nullable|in:Yes,No',
+                'long_let'              => 'nullable|string|max:10',
+                'leasehold'             => 'nullable|string|max:10',
+                'terrace'               => 'nullable|numeric',
+                'pool'                  => 'nullable|string|max:255',
+                'pool_description'      => 'nullable|string',
+
+                // Price panel
+                'currency'              => 'nullable|string|max:3',
+                'price'                 => 'nullable|numeric',    // simple price
+                'price_current'         => 'nullable|numeric|min:0',
+                'price_original'        => 'nullable|numeric|min:0',
+                'poa_current'           => 'nullable|boolean',
+                'reduction_percent'     => 'nullable|numeric|min:0|max:100',
+                'reduction_value'       => 'nullable|numeric|min:0',
+                'display_as_percentage' => 'nullable|in:Yes,No',
+                'monthly_rent'          => 'nullable|numeric|min:0',
+
+                // Years
                 'year_construction'     => 'nullable|integer',
                 'year_renovation'       => 'nullable|integer|gte:year_construction',
 
+                // Misc
                 'furnished'             => 'nullable|string',
                 'reference'             => 'required_with:photos|string|max:255',
                 'status'                => 'nullable|string',
                 'orientation'           => 'nullable|string',
                 'energyEfficiency'      => 'nullable|string',
                 'vat'                   => 'nullable|string',
-                'price'                 => 'nullable|numeric',
 
-                // Areas (camelCase -> will be mapped)
-                'covered'               => 'nullable|numeric',
-                'plot'                  => 'nullable|numeric',
-                'roofGarden'            => 'nullable|numeric',
-                'attic'                 => 'nullable|numeric',
-                'coveredVeranda'        => 'nullable|numeric',
-                'uncoveredVeranda'      => 'nullable|numeric',
-                'garden'                => 'nullable|numeric',
-                'basement'              => 'nullable|numeric',
-                'courtyard'             => 'nullable|numeric',
-                'coveredParking'        => 'nullable|numeric',
+                // =========================
+                // STEP 5 – AREAS (m²)
+                // (matches Step 5 Blade: area_covered, area_plot, etc.)
+                // =========================
+                'area_covered'          => 'nullable|numeric',
+                'area_plot'             => 'nullable|numeric',
+                'area_roof_garden'      => 'nullable|numeric',
+                'area_attic'            => 'nullable|numeric',
+                'area_cov_veranda'      => 'nullable|numeric',
+                'area_uncov_veranda'    => 'nullable|numeric',
+                'area_cov_parking'      => 'nullable|numeric',
+                'area_basement'         => 'nullable|numeric',
+                'area_courtyard'        => 'nullable|numeric',
+                'area_garden'           => 'nullable|numeric',
 
-                // Owner/loc
+                // =========================
+                // STEP 2 – PROPERTY LOCATION
+                // =========================
+                'country'               => 'nullable|string|max:255',
+                'region'                => 'nullable|string|max:255',
+                'town'                  => 'nullable|string|max:255',
+                'locality'              => 'nullable|string|max:255',
+
+                'latitude'              => 'nullable|numeric',
+                'longitude'             => 'nullable|numeric',
+                'map_address'           => 'nullable|string',
+                'accuracy'              => 'nullable|string|max:255',
+
+                // Extra owner/location (manual / imports)
                 'owner'                 => 'nullable|string',
                 'refId'                 => 'nullable|string',
-                'region'                => 'nullable|string',
-                'town'                  => 'nullable|string',
                 'address'               => 'nullable|string',
 
-                // Arrays / JSON
+                // =========================
+                // ARRAYS / JSON
+                // =========================
                 'labels'                => 'nullable|array',
+                'labels.*'              => 'nullable|string|max:255',
                 'image_order'           => 'nullable|array',
                 'photos'                => 'nullable|array',
 
-                // Land
+                'display_as'            => 'nullable|array',
+                'display_as.*'          => 'nullable|string|max:255',
+                'external'              => 'nullable|array',
+                'external.*'            => 'nullable|string|max:255',
+                'other'                 => 'nullable|array',
+                'other.*'               => 'nullable|string|max:255',
+                'banner'                => 'nullable|string|max:255',
+
+                // =========================
+                // STEP 7 – VENDOR / SOLICITOR / BANK
+                // =========================
+                // vendor
+                'first_name'           => 'nullable|string|max:255',
+                'last_name'            => 'nullable|string|max:255',
+                'telephone'            => 'nullable|string|max:255',
+                'mobile'               => 'nullable|string|max:255',
+                'email'                => 'nullable|email|max:255',
+                'type'                 => 'nullable|string|max:255',
+                'source'               => 'nullable|string|max:255',
+                'notes'                => 'nullable|string',
+
+                // solicitor
+                'sol_first_name'       => 'nullable|string|max:255',
+                'sol_last_name'        => 'nullable|string|max:255',
+                'sol_phone_day'        => 'nullable|string|max:255',
+                'sol_email'            => 'nullable|email|max:255',
+                'sol_address'          => 'nullable|string',
+
+                // bank
+                'bank_name'            => 'nullable|string|max:255',
+                'bank_sort_code'       => 'nullable|string|max:255',
+                'bank_account_name'    => 'nullable|string|max:255',
+                'bank_account_number'  => 'nullable|string|max:255',
+                'bank_address'         => 'nullable|string',
+
+                // vendor address & map (Step 7 Blade names)
+                'building_name'        => 'nullable|string|max:255',
+                'address_line1'        => 'nullable|string|max:255',
+                'address_line2'        => 'nullable|string|max:255',
+                'address_line3'        => 'nullable|string|max:255',
+                'postcode'             => 'nullable|string|max:255',
+                'geolocation'          => 'nullable|string|max:255',
+                'lat'                  => 'nullable|string|max:50',
+                'lng'                  => 'nullable|string|max:50',
+
+                // =========================
+                // LAND FIELDS
+                // =========================
                 'regnum'                => 'nullable|string|max:255',
                 'plotnum'               => 'nullable|string|max:255',
                 'section'               => 'nullable|string|max:255',
@@ -348,7 +476,10 @@ class PropertiesController extends Controller
                 'titleDead'             => 'nullable|in:-,available,in_process,no_title',
                 'share'                 => 'nullable|numeric',
 
-                // Distances (camelCase -> will be mapped)
+                // =========================
+                // DISTANCES (km)
+                // (amenities, airport, etc. from Step 5 top)
+                // =========================
                 'amenities'             => 'nullable|numeric',
                 'airport'               => 'nullable|numeric',
                 'sea'                   => 'nullable|numeric',
@@ -356,59 +487,248 @@ class PropertiesController extends Controller
                 'schools'               => 'nullable|numeric',
                 'resort'                => 'nullable|numeric',
 
-                // Files
-                'titledeed'             => 'nullable',
+                // =========================
+                // FILES (IMAGES)
+                // =========================
+                'titledeed'             => 'nullable',          // will be filled by processFileUploads
                 'title_deed'            => 'nullable|array',
                 'title_deed.*'          => 'file|image|max:30720',
 
-                // ✅ Property Status: '' (None) or 'Active'
-                // The trailing comma in 'in:Active,' allows empty string.
-                'property_status'       => 'nullable|in:Active,',
+                'floor_plans'           => 'nullable|array',
+                'floor_plans.*'         => 'file|image|max:30720',
+
+                // =========================
+                // STEP 9 – VIDEOS / TOUR / DOCS
+                // =========================
+                'youtube1'              => 'nullable|string|max:255',
+                'youtube2'              => 'nullable|string|max:255',
+                'virtual_tour'          => 'nullable|string|max:255',
+                'document'              => 'nullable|file|max:51200', // ~50MB
+
+                // =========================
+                // STEP 10 – STATUS (+ optional AI language)
+                // =========================
+                'property_status'       => 'nullable|in:Active,', // '' (None) or 'Active'
+                'ai_language'           => 'nullable|string|max:50',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            dd(['validation_errors' => $e->errors(), 'input' => $request->all()]);
+            dd([
+                'validation_errors' => $e->errors(),
+                'input'             => $request->all(),
+            ]);
         }
 
-        // 2) JSON-encode array fields expected as JSON in DB
-        foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
-            if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
-                $validated[$jsonKey] = json_encode($validated[$jsonKey]);
+        // Start with validated data
+        $data = $validated;
+
+        // 2) JSON-encode array fields stored as JSON in DB
+        foreach (['labels', 'image_order'] as $jsonKey) {
+            if (isset($data[$jsonKey]) && is_array($data[$jsonKey])) {
+                $data[$jsonKey] = json_encode($data[$jsonKey]);
             }
         }
 
-        // 3) Handle file uploads & merge
-        $data = $this->processFileUploads($request, $validated);
+        // 3) Handle file uploads (photos, floor_plans, titledeed, etc.)
+        //    This should fill $data['photos'], $data['floor_plans'], $data['titledeed'] etc.
+        $data = $this->processFileUploads($request, $data);
 
-        // 4) Map camelCase → DB column names (*_m2, *_km)
+        // 4) Normalize Areas & Distances
+        //    (e.g. area_covered → covered_m2, amenities → amenities_km, etc.)
         $data = $this->normalizeAreaAndDistanceKeys($data);
+
+        // 4b) STEP 6 – Pack property options into features JSON
+        $featuresPayload = [
+            'display_as' => $request->input('display_as', []),
+            'external'   => $request->input('external', []),
+            'other'      => $request->input('other', []),
+            'banner'     => $request->input('banner'),
+        ];
+        $data['features'] = json_encode($featuresPayload);
+
+        // 4c) STEP 7 – Pack Vendor/Solicitor/Bank/Address into vendor_details JSON IF column exists
+        if (Schema::hasColumn('properties', 'vendor_details')) {
+            $data['vendor_details'] = json_encode([
+                'vendor' => [
+                    // (Note: "title" for vendor is optional; you can add it later)
+                    'first_name'  => $request->first_name,
+                    'last_name'   => $request->last_name,
+                    'telephone'   => $request->telephone,
+                    'mobile'      => $request->mobile,
+                    'email'       => $request->email,
+                    'type'        => $request->type,
+                    'source'      => $request->source,
+                    'notes'       => $request->notes,
+                ],
+                'solicitor' => [
+                    'first_name'  => $request->sol_first_name,
+                    'last_name'   => $request->sol_last_name,
+                    'phone_day'   => $request->sol_phone_day,
+                    'email'       => $request->sol_email,
+                    'address'     => $request->sol_address,
+                ],
+                'bank' => [
+                    'name'            => $request->bank_name,
+                    'sort_code'       => $request->bank_sort_code,
+                    'account_name'    => $request->bank_account_name,
+                    'account_number'  => $request->bank_account_number,
+                    'address'         => $request->bank_address,
+                ],
+                'address' => [
+                    // matches Step 7 "Vendor Address" field names
+                    'building_name' => $request->building_name,
+                    'line1'         => $request->address_line1,
+                    'line2'         => $request->address_line2,
+                    'line3'         => $request->address_line3,
+                    'locality'      => $request->locality,
+                    'town'          => $request->town,
+                    'region'        => $request->region,
+                    'postcode'      => $request->postcode,
+                    'country'       => $request->country,
+                    'geolocation'   => $request->geolocation,
+                    'lat'           => $request->lat,
+                    'lng'           => $request->lng,
+                ],
+            ]);
+        }
+
+        // 4d) STEP 8 – Custom Fields → custom_fields JSON (if column exists)
+        if (Schema::hasColumn('properties', 'custom_fields')) {
+            // All prefixes used in your Step 8 Blade
+            $customPrefixes = [
+                'views_', 'orient_', 'plot_', 'garden_', 'pool_',
+                'park_', 'mla_', 'guest_', 'kitchen_', 'floor_',
+                'extra_', 'heat_', 'ac_', 'incl_', 'svc_',
+                'furn_', 'guesthouse_',
+            ];
+
+            $customFields = [];
+
+            foreach ($request->all() as $key => $value) {
+                if ($value === null || $value === '') {
+                    continue; // skip empty
+                }
+
+                foreach ($customPrefixes as $prefix) {
+                    if (\Illuminate\Support\Str::startsWith($key, $prefix)) {
+                        $customFields[$key] = $value;
+                        break;
+                    }
+                }
+            }
+
+            // Always save as JSON object (even if empty)
+            $data['custom_fields'] = json_encode($customFields);
+        }
+
+        // ==============================
+        // STEP 1 – SPECIAL MAPPINGS
+        // ==============================
+
+        // Prefer "Current Price" over basic price if present
+        if ($request->filled('price_current')) {
+            $data['price'] = (float) $request->input('price_current');
+        }
+
+        // Title deeds: Yes/No → internal codes
+        if ($request->filled('title_deeds')) {
+            $td = $request->input('title_deeds');
+            $data['titleDead'] = $td === 'Yes'
+                ? 'available'
+                : ($td === 'No' ? 'no_title' : null);
+        }
+
+        // Terrace: save as terrace_m2 if that column exists
+        if ($request->filled('terrace') && Schema::hasColumn('properties', 'terrace_m2')) {
+            $data['terrace_m2'] = (float) $request->input('terrace');
+        }
+
+        // Original price → reducedPrice
+        if ($request->filled('price_original')) {
+            $data['reducedPrice'] = (float) $request->input('price_original');
+        }
+
+        // Display reduction as % ?
+        $data['display_reduction_as_percent'] =
+            $request->input('display_as_percentage') === 'Yes';
+
+        // Monthly rent
+        if ($request->filled('monthly_rent')) {
+            $data['monthly_rent'] = $request->input('monthly_rent');
+        }
+
+        // ==============================
+        // STEP 2 – LOCATION MAPPINGS
+        // ==============================
+
+        // Locality (form) → location2 (DB)
+        if ($request->filled('locality')) {
+            $data['location2'] = $request->input('locality');
+        }
+
+        // Map address from reverse geocode → address column
+        if ($request->filled('map_address')) {
+            $data['address'] = $request->input('map_address');
+        }
+
+        // Lat/Lng for property (latitude, longitude) already validated
 
         // 5) Attach owner
         $data['user_id'] = auth()->id();
 
-        // ✅ 6) Ensure property_status is set to '' when “None” is chosen
-        $data['property_status'] = $request->input('property_status', ''); // '' = None, 'Active' = publish
+        // 6) Property status & is_live mirror
+        $data['property_status'] = $request->input('property_status', ''); // '' or 'Active'
 
-        // (Optional) if you want your “Website Live” column to mirror this immediately:
-        if (array_key_exists('is_live', (new \App\Models\PropertiesModel)->getAttributes())) {
+        if (Schema::hasColumn('properties', 'is_live')) {
             $data['is_live'] = ($data['property_status'] === 'Active');
         }
 
-        // 7) Persist
+        // ==============================
+        // STEP 9 – VIDEOS, TOUR, DOCS, FACILITIES
+        // ==============================
+
+        // YouTube & Virtual Tour links
+        if ($request->filled('youtube1')) {
+            $data['youtube1'] = $request->input('youtube1');
+        }
+        if ($request->filled('youtube2')) {
+            $data['youtube2'] = $request->input('youtube2');
+        }
+        if ($request->filled('virtual_tour')) {
+            $data['virtual_tour'] = $request->input('virtual_tour');
+        }
+
+        // Facilities (labels[] → labels JSON), only if column exists
+        if (Schema::hasColumn('properties', 'labels')) {
+            $data['labels'] = json_encode($request->input('labels', []));
+        }
+
+        // Handle single document upload (document), if column exists
+        if ($request->hasFile('document') && Schema::hasColumn('properties', 'document')) {
+            $file     = $request->file('document');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path     = $file->storeAs('documents', $filename, 'public');
+            $data['document'] = $path;
+        }
+
+        // ==============================
+        // FINAL FILTER + SAVE
+        // ==============================
+
+        // Filter out any non-existent columns (safety)
+        $columns = Schema::getColumnListing((new PropertiesModel)->getTable());
+        $data    = array_intersect_key($data, array_flip($columns));
+
+        // dd($data);
+
+        // Persist
         $property = PropertiesModel::create($data);
 
-        // ✅ 8) (Next step) If Active, we’ll sync to the frontend API.
-        // For now we just leave a placeholder; we’ll add the Job after you confirm this step works.
-        // if ($property->property_status === 'Active') {
-        //     SyncPropertyToFrontend::dispatch($property->id);
-        // }
-
         \Log::info('✅ Property saved successfully', ['id' => $property->id]);
-        return redirect()->route('properties.index')->with('success', 'Property added successfully.');
 
+        return redirect()
+            ->route('properties.index')
+            ->with('success', 'Property added successfully.');
     }
-
-
-
 
     public function validateRequest(Request $request)
     {
@@ -491,8 +811,12 @@ class PropertiesController extends Controller
 
     public function update(Request $request, PropertiesModel $property)
     {
+        // 1) Validate (same rules as store)
         try {
             $validated = $request->validate([
+                // =========================
+                // STEP 1 – BASIC PROPERTY
+                // =========================
                 'title'                 => 'required|string|max:255',
                 'property_description'  => 'nullable|string',
                 'property_type'         => 'required|string',
@@ -501,43 +825,127 @@ class PropertiesController extends Controller
                 'bedrooms'              => 'nullable|integer',
                 'bathrooms'             => 'nullable|integer',
 
-                // years with constraint (renovation >= construction)
+                // Step 1 extras
+                'poa'                   => 'nullable|boolean',
+                'floor'                 => 'nullable|integer|min:0',
+                'title_deeds'           => 'nullable|in:Yes,No',
+                'long_let'              => 'nullable|string|max:10',
+                'leasehold'             => 'nullable|string|max:10',
+                'terrace'               => 'nullable|numeric',
+                'pool'                  => 'nullable|string|max:255',
+                'pool_description'      => 'nullable|string',
+
+                // Price panel
+                'currency'              => 'nullable|string|max:3',
+                'price'                 => 'nullable|numeric',
+                'price_current'         => 'nullable|numeric|min:0',
+                'price_original'        => 'nullable|numeric|min:0',
+                'poa_current'           => 'nullable|boolean',
+                'reduction_percent'     => 'nullable|numeric|min:0|max:100',
+                'reduction_value'       => 'nullable|numeric|min:0',
+                'display_as_percentage' => 'nullable|in:Yes,No',
+                'monthly_rent'          => 'nullable|numeric|min:0',
+
+                // Years
                 'year_construction'     => 'nullable|integer',
                 'year_renovation'       => 'nullable|integer|gte:year_construction',
 
+                // Misc
                 'furnished'             => 'nullable|string',
                 'reference'             => 'required_with:photos|string|max:255',
                 'status'                => 'nullable|string',
                 'orientation'           => 'nullable|string',
                 'energyEfficiency'      => 'nullable|string',
                 'vat'                   => 'nullable|string',
-                'price'                 => 'nullable|numeric',
 
-                // Areas (camelCase -> will be mapped)
-                'covered'               => 'nullable|numeric',
-                'plot'                  => 'nullable|numeric',
-                'roofGarden'            => 'nullable|numeric',
-                'attic'                 => 'nullable|numeric',
-                'coveredVeranda'        => 'nullable|numeric',
-                'uncoveredVeranda'      => 'nullable|numeric',
-                'garden'                => 'nullable|numeric',
-                'basement'              => 'nullable|numeric',
-                'courtyard'             => 'nullable|numeric',
-                'coveredParking'        => 'nullable|numeric',
+                // =========================
+                // STEP 5 – AREAS (m²)
+                // =========================
+                'area_covered'          => 'nullable|numeric',
+                'area_plot'             => 'nullable|numeric',
+                'area_roof_garden'      => 'nullable|numeric',
+                'area_attic'            => 'nullable|numeric',
+                'area_cov_veranda'      => 'nullable|numeric',
+                'area_uncov_veranda'    => 'nullable|numeric',
+                'area_cov_parking'      => 'nullable|numeric',
+                'area_basement'         => 'nullable|numeric',
+                'area_courtyard'        => 'nullable|numeric',
+                'area_garden'           => 'nullable|numeric',
 
-                // Owner/loc
+                // =========================
+                // STEP 2 – PROPERTY LOCATION
+                // =========================
+                'country'               => 'nullable|string|max:255',
+                'region'                => 'nullable|string|max:255',
+                'town'                  => 'nullable|string|max:255',
+                'locality'              => 'nullable|string|max:255',
+
+                'latitude'              => 'nullable|numeric',
+                'longitude'             => 'nullable|numeric',
+                'map_address'           => 'nullable|string',
+                'accuracy'              => 'nullable|string|max:255',
+
+                // Extra owner/location (manual / imports)
                 'owner'                 => 'nullable|string',
                 'refId'                 => 'nullable|string',
-                'region'                => 'nullable|string',
-                'town'                  => 'nullable|string',
                 'address'               => 'nullable|string',
 
-                // Arrays / JSON
+                // =========================
+                // ARRAYS / JSON
+                // =========================
                 'labels'                => 'nullable|array',
+                'labels.*'              => 'nullable|string|max:255',
                 'image_order'           => 'nullable|array',
                 'photos'                => 'nullable|array',
 
-                // Land
+                'display_as'            => 'nullable|array',
+                'display_as.*'          => 'nullable|string|max:255',
+                'external'              => 'nullable|array',
+                'external.*'            => 'nullable|string|max:255',
+                'other'                 => 'nullable|array',
+                'other.*'               => 'nullable|string|max:255',
+                'banner'                => 'nullable|string|max:255',
+
+                // =========================
+                // STEP 7 – VENDOR / SOLICITOR / BANK
+                // =========================
+                // vendor
+                'first_name'           => 'nullable|string|max:255',
+                'last_name'            => 'nullable|string|max:255',
+                'telephone'            => 'nullable|string|max:255',
+                'mobile'               => 'nullable|string|max:255',
+                'email'                => 'nullable|email|max:255',
+                'type'                 => 'nullable|string|max:255',
+                'source'               => 'nullable|string|max:255',
+                'notes'                => 'nullable|string',
+
+                // solicitor
+                'sol_first_name'       => 'nullable|string|max:255',
+                'sol_last_name'        => 'nullable|string|max:255',
+                'sol_phone_day'        => 'nullable|string|max:255',
+                'sol_email'            => 'nullable|email|max:255',
+                'sol_address'          => 'nullable|string',
+
+                // bank
+                'bank_name'            => 'nullable|string|max:255',
+                'bank_sort_code'       => 'nullable|string|max:255',
+                'bank_account_name'    => 'nullable|string|max:255',
+                'bank_account_number'  => 'nullable|string|max:255',
+                'bank_address'         => 'nullable|string',
+
+                // vendor address & map (Step 7 Blade names)
+                'building_name'        => 'nullable|string|max:255',
+                'address_line1'        => 'nullable|string|max:255',
+                'address_line2'        => 'nullable|string|max:255',
+                'address_line3'        => 'nullable|string|max:255',
+                'postcode'             => 'nullable|string|max:255',
+                'geolocation'          => 'nullable|string|max:255',
+                'lat'                  => 'nullable|string|max:50',
+                'lng'                  => 'nullable|string|max:50',
+
+                // =========================
+                // LAND FIELDS
+                // =========================
                 'regnum'                => 'nullable|string|max:255',
                 'plotnum'               => 'nullable|string|max:255',
                 'section'               => 'nullable|string|max:255',
@@ -545,7 +953,9 @@ class PropertiesController extends Controller
                 'titleDead'             => 'nullable|in:-,available,in_process,no_title',
                 'share'                 => 'nullable|numeric',
 
-                // Distances (camelCase -> will be mapped)
+                // =========================
+                // DISTANCES (km)
+                // =========================
                 'amenities'             => 'nullable|numeric',
                 'airport'               => 'nullable|numeric',
                 'sea'                   => 'nullable|numeric',
@@ -553,50 +963,225 @@ class PropertiesController extends Controller
                 'schools'               => 'nullable|numeric',
                 'resort'                => 'nullable|numeric',
 
-                // Files
+                // =========================
+                // FILES (IMAGES)
+                // =========================
                 'titledeed'             => 'nullable',
                 'title_deed'            => 'nullable|array',
                 'title_deed.*'          => 'file|image|max:30720',
 
-                // Property Status: '' (None) or 'Active'
+                'floor_plans'           => 'nullable|array',
+                'floor_plans.*'         => 'file|image|max:30720',
+
+                // =========================
+                // STEP 9 – VIDEOS / TOUR / DOCS
+                // =========================
+                'youtube1'              => 'nullable|string|max:255',
+                'youtube2'              => 'nullable|string|max:255',
+                'virtual_tour'          => 'nullable|string|max:255',
+                'document'              => 'nullable|file|max:51200',
+
+                // =========================
+                // STEP 10 – STATUS (+ optional AI language)
+                // =========================
                 'property_status'       => 'nullable|in:Active,',
+                'ai_language'           => 'nullable|string|max:50',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            dd(['validation_errors' => $e->errors(), 'input' => $request->all()]);
+            dd([
+                'validation_errors' => $e->errors(),
+                'input'             => $request->all(),
+            ]);
         }
 
-        // JSON-encode array fields expected as JSON in DB
-        foreach (['labels','image_order','floor_plans','titledeed'] as $jsonKey) {
-            if (isset($validated[$jsonKey]) && is_array($validated[$jsonKey])) {
-                $validated[$jsonKey] = json_encode($validated[$jsonKey]);
+        // Start with validated data
+        $data = $validated;
+
+        // 2) JSON-encode array fields stored as JSON in DB
+        foreach (['labels', 'image_order'] as $jsonKey) {
+            if (isset($data[$jsonKey]) && is_array($data[$jsonKey])) {
+                $data[$jsonKey] = json_encode($data[$jsonKey]);
             }
         }
 
-        // Handle file uploads & merge
-        $data = $this->processFileUploads($request, $validated);
+        // 3) Handle file uploads (photos, floor_plans, titledeed, etc.)
+        $data = $this->processFileUploads($request, $data, $property); // if your helper supports passing model; else remove $property
 
-        // Map camelCase → DB columns (*_m2, *_km)
+        // 4) Normalize Areas & Distances (area_* → *_m2, amenities → amenities_km, etc.)
         $data = $this->normalizeAreaAndDistanceKeys($data);
 
-        // Ensure property_status is set ('' when “None”)
-        $data['property_status'] = $request->input('property_status', '');
+        // 4b) STEP 6 – Pack property options into features JSON
+        $featuresPayload = [
+            'display_as' => $request->input('display_as', []),
+            'external'   => $request->input('external', []),
+            'other'      => $request->input('other', []),
+            'banner'     => $request->input('banner'),
+        ];
+        $data['features'] = json_encode($featuresPayload);
 
-        // (Optional) mirror to is_live if you want the list icon to reflect status
-        if (array_key_exists('is_live', $property->getAttributes())) {
+        // 4c) STEP 7 – Pack Vendor/Solicitor/Bank/Address into vendor_details JSON IF column exists
+        if (Schema::hasColumn('properties', 'vendor_details')) {
+            $data['vendor_details'] = json_encode([
+                'vendor' => [
+                    'first_name'  => $request->first_name,
+                    'last_name'   => $request->last_name,
+                    'telephone'   => $request->telephone,
+                    'mobile'      => $request->mobile,
+                    'email'       => $request->email,
+                    'type'        => $request->type,
+                    'source'      => $request->source,
+                    'notes'       => $request->notes,
+                ],
+                'solicitor' => [
+                    'first_name'  => $request->sol_first_name,
+                    'last_name'   => $request->sol_last_name,
+                    'phone_day'   => $request->sol_phone_day,
+                    'email'       => $request->sol_email,
+                    'address'     => $request->sol_address,
+                ],
+                'bank' => [
+                    'name'            => $request->bank_name,
+                    'sort_code'       => $request->bank_sort_code,
+                    'account_name'    => $request->bank_account_name,
+                    'account_number'  => $request->bank_account_number,
+                    'address'         => $request->bank_address,
+                ],
+                'address' => [
+                    'building_name' => $request->building_name,
+                    'line1'         => $request->address_line1,
+                    'line2'         => $request->address_line2,
+                    'line3'         => $request->address_line3,
+                    'locality'      => $request->locality,
+                    'town'          => $request->town,
+                    'region'        => $request->region,
+                    'postcode'      => $request->postcode,
+                    'country'       => $request->country,
+                    'geolocation'   => $request->geolocation,
+                    'lat'           => $request->lat,
+                    'lng'           => $request->lng,
+                ],
+            ]);
+        }
+
+        // 4d) STEP 8 – Custom Fields → custom_fields JSON (if column exists)
+        if (Schema::hasColumn('properties', 'custom_fields')) {
+            $customPrefixes = [
+                'views_', 'orient_', 'plot_', 'garden_', 'pool_',
+                'park_', 'mla_', 'guest_', 'kitchen_', 'floor_',
+                'extra_', 'heat_', 'ac_', 'incl_', 'svc_',
+                'furn_', 'guesthouse_',
+            ];
+
+            $customFields = [];
+
+            foreach ($request->all() as $key => $value) {
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                foreach ($customPrefixes as $prefix) {
+                    if (\Illuminate\Support\Str::startsWith($key, $prefix)) {
+                        $customFields[$key] = $value;
+                        break;
+                    }
+                }
+            }
+
+            $data['custom_fields'] = json_encode($customFields);
+        }
+
+        // ==============================
+        // STEP 1 – SPECIAL MAPPINGS
+        // ==============================
+
+        if ($request->filled('price_current')) {
+            $data['price'] = (float) $request->input('price_current');
+        }
+
+        if ($request->filled('title_deeds')) {
+            $td = $request->input('title_deeds');
+            $data['titleDead'] = $td === 'Yes'
+                ? 'available'
+                : ($td === 'No' ? 'no_title' : null);
+        }
+
+        if ($request->filled('terrace') && Schema::hasColumn('properties', 'terrace_m2')) {
+            $data['terrace_m2'] = (float) $request->input('terrace');
+        }
+
+        if ($request->filled('price_original')) {
+            $data['reducedPrice'] = (float) $request->input('price_original');
+        }
+
+        $data['display_reduction_as_percent'] =
+            $request->input('display_as_percentage') === 'Yes';
+
+        if ($request->filled('monthly_rent')) {
+            $data['monthly_rent'] = $request->input('monthly_rent');
+        }
+
+        // ==============================
+        // STEP 2 – LOCATION MAPPINGS
+        // ==============================
+
+        if ($request->filled('locality')) {
+            $data['location2'] = $request->input('locality');
+        }
+
+        if ($request->filled('map_address')) {
+            $data['address'] = $request->input('map_address');
+        }
+
+        // NOTE: we do NOT touch user_id here; keep original property owner
+
+        // 6) Property status & is_live mirror
+        $data['property_status'] = $request->input('property_status', $property->property_status ?? '');
+
+        if (Schema::hasColumn('properties', 'is_live')) {
             $data['is_live'] = ($data['property_status'] === 'Active');
         }
 
+        // ==============================
+        // STEP 9 – VIDEOS, TOUR, DOCS, FACILITIES
+        // ==============================
+
+        if ($request->filled('youtube1')) {
+            $data['youtube1'] = $request->input('youtube1');
+        }
+        if ($request->filled('youtube2')) {
+            $data['youtube2'] = $request->input('youtube2');
+        }
+        if ($request->filled('virtual_tour')) {
+            $data['virtual_tour'] = $request->input('virtual_tour');
+        }
+
+        if (Schema::hasColumn('properties', 'labels')) {
+            $data['labels'] = json_encode($request->input('labels', []));
+        }
+
+        if ($request->hasFile('document') && Schema::hasColumn('properties', 'document')) {
+            $file     = $request->file('document');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path     = $file->storeAs('documents', $filename, 'public');
+            $data['document'] = $path;
+        }
+
+        // ==============================
+        // FINAL FILTER + UPDATE
+        // ==============================
+
+        $columns = Schema::getColumnListing($property->getTable());
+        $data    = array_intersect_key($data, array_flip($columns));
+
+        // dd($data);
+
         $property->update($data);
 
-        // (Next step) publish/unpublish sync job will be triggered here.
-        // if ($property->property_status === 'Active') {
-        //     SyncPropertyToFrontend::dispatch($property->id);
-        // } else {
-        //     SyncPropertyToFrontend::dispatch($property->id); // will unpublish
-        // }
-
         \Log::info('✅ Property updated successfully', ['id' => $property->id]);
-        return redirect()->route('properties.index')->with('success', 'Property updated successfully.');
+
+        return redirect()
+            ->route('properties.index')
+            ->with('success', 'Property updated successfully.');
     }
 
 
@@ -911,10 +1496,6 @@ class PropertiesController extends Controller
         $folder = preg_replace('/[^A-Za-z0-9_\-]/', '', $ref);
         return $folder !== '' ? strtoupper($folder) : 'MISC';
     }
-
-
-
-
 
 
 }

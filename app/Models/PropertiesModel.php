@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 
+use App\Models\PropertyActivityLog;
+use Illuminate\Support\Facades\Auth;
+
+
 class PropertiesModel extends Model
 {
     use HasFactory, SoftDeletes;
@@ -112,27 +116,6 @@ class PropertiesModel extends Model
         'movedinReady' => 'date',
         'published_at' => 'datetime',
     ];
-
-    /* -----------------------------------------------------------------
-     |  Deletion hooks (S3 cleanup on force delete by default)
-     | ----------------------------------------------------------------- */
-
-    protected static function booted(): void
-    {
-        // Clean S3 when the record is permanently removed
-        static::forceDeleted(function (PropertiesModel $property) {
-            $property->deleteS3Assets();
-        });
-
-        // If you want to delete from S3 on SOFT delete as well, uncomment:
-        /*
-        static::deleting(function (PropertiesModel $property) {
-            if (!method_exists($property, 'isForceDeleting') || !$property->isForceDeleting()) {
-                $property->deleteS3Assets();
-            }
-        });
-        */
-    }
 
     public function deleteS3Assets(): void
     {
@@ -303,6 +286,79 @@ class PropertiesModel extends Model
             $qq->whereNull('property_status')->orWhere('property_status', '');
         });
     }
+
+    protected static function booted()
+    {
+        static::forceDeleted(function (PropertiesModel $property) {
+            $property->deleteS3Assets();
+        });
+        // CREATE
+        static::created(function ($property) {
+            PropertyActivityLog::create([
+                'property_id'    => $property->id,
+                'reference'      => $property->reference,
+                'action'         => 'created',
+                'source'         => Auth::check() ? 'admin' : 'system',
+                'changed_fields' => null,
+                'user_id'        => Auth::id(),
+            ]);
+        });
+
+        // UPDATE
+        static::updating(function ($property) {
+            $changes = [];
+
+            foreach ($property->getDirty() as $field => $newValue) {
+                $oldValue = $property->getOriginal($field);
+
+                // Log only meaningful fields (exclude updated_at, etc.)
+                if ($field !== 'updated_at') {
+                    $changes[$field] = [
+                        'old' => $oldValue,
+                        'new' => $newValue,
+                    ];
+                }
+            }
+
+            if (!empty($changes)) {
+                PropertyActivityLog::create([
+                    'property_id'    => $property->id,
+                    'reference'      => $property->reference,
+                    'action'         => 'updated',
+                    'source'         => Auth::check() ? 'admin' : 'system',
+                    'changed_fields' => $changes,
+                    'user_id'        => Auth::id(),
+                ]);
+            }
+        });
+
+        // SOFT DELETE
+        static::deleted(function ($property) {
+            PropertyActivityLog::create([
+                'property_id'    => $property->id,
+                'reference'      => $property->reference,
+                'action'         => 'deleted',
+                'source'         => Auth::check() ? 'admin' : 'system',
+                'changed_fields' => null,
+                'user_id'        => Auth::id(),
+            ]);
+        });
+
+        // RESTORE
+        if (method_exists(self::class, 'restored')) {
+            static::restored(function ($property) {
+                PropertyActivityLog::create([
+                    'property_id'    => $property->id,
+                    'reference'      => $property->reference,
+                    'action'         => 'restored',
+                    'source'         => Auth::check() ? 'admin' : 'system',
+                    'changed_fields' => null,
+                    'user_id'        => Auth::id(),
+                ]);
+            });
+        }
+    }
+
 
 
 }

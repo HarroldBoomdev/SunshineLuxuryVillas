@@ -1,11 +1,4 @@
 <div class="container my-4">
-  <form id="propertyForm"
-      action="{{ route('properties.store') }}"
-      method="POST"
-      data-turbo="false" data-turbolinks="false" autocomplete="off" novalidate>
-
-    @csrf
-
     <!-- BASICS -->
     <div class="card shadow-sm border-0 mb-4">
       <div class="card-header bg-white"><strong>Basics</strong></div>
@@ -271,8 +264,6 @@
             </div>
         </div>
         </div>
-
-  </form>
 </div>
 
 <style>

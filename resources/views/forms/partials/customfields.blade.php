@@ -248,15 +248,17 @@ use Illuminate\Support\Str;
         @php $secId = Str::slug($section).'-'.$loop->index; @endphp
         <div class="accordion-item">
           <h2 class="accordion-header" id="h-{{ $secId }}">
-            <button class="accordion-button {{ $loop->first ? '' : 'collapsed' }}"
-                    type="button" data-bs-toggle="collapse"
-                    data-bs-target="#c-{{ $secId }}" aria-expanded="{{ $loop->first ? 'true':'false' }}">
-              {{ $section }}
+            <button class="accordion-button custom-acc-btn {{ $loop->first ? '' : 'collapsed' }}"
+                    type="button"
+                    data-target="#c-{{ $secId }}"
+                    aria-expanded="{{ $loop->first ? 'true':'false' }}">
+                {{ $section }}
             </button>
+
           </h2>
-          <div id="c-{{ $secId }}" class="accordion-collapse collapse {{ $loop->first ? 'show':'' }}">
+          <div id="c-{{ $secId }}" class="accordion-panel {{ $loop->first ? 'cf-open' : '' }}">
             <div class="accordion-body">
-              <div class="row g-2">
+                <div class="row g-2">
                 @foreach($items as $it)
                   @php
                     $type = $it['type'] ?? 'check';
@@ -305,4 +307,44 @@ use Illuminate\Support\Str;
   .accordion-button { background:#f8fafc; }
   .accordion-button:not(.collapsed){ background:#eef5ff; }
   .border.rounded.p-2:hover{ background:#f9fbff; border-color:#cfd7df; }
+
+  .accordion-panel { display: none; }
+  .accordion-panel.cf-open { display: block; }
+
+  .accordion-button { background:#f8fafc; }
+  .accordion-button:not(.collapsed){ background:#eef5ff; }
+  .border.rounded.p-2:hover{ background:#f9fbff; border-color:#cfd7df; }
 </style>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const container = document.getElementById('customFieldsAcc');
+  if (!container) return;
+
+  const buttons = container.querySelectorAll('.custom-acc-btn');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetSelector = btn.getAttribute('data-target');
+      const target = targetSelector ? document.querySelector(targetSelector) : null;
+      if (!target) return;
+
+      const isOpen = target.classList.contains('cf-open');
+
+      // Close all panels
+      container.querySelectorAll('.accordion-panel').forEach(el => el.classList.remove('cf-open'));
+      container.querySelectorAll('.custom-acc-btn').forEach(b => b.classList.add('collapsed'));
+
+      // If this panel was closed, open it
+      if (!isOpen) {
+        target.classList.add('cf-open');
+        btn.classList.remove('collapsed');
+      }
+    });
+  });
+});
+</script>
+@endpush
+
+
