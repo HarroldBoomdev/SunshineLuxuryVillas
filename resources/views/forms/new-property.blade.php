@@ -1,9 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
+
+
     <div class="container my-4">
         <!-- Header + Progress -->
         <div class="card shadow-sm border-0 mb-3">
+             @include('layouts.newButton')
             <div class="card-body d-flex align-items-center justify-content-between">
                 <div>
                     <h5 class="mb-0">Add Property</h5>
