@@ -512,10 +512,6 @@ class PropertiesController extends Controller
                 'ai_language'           => 'nullable|string|max:50',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            dd([
-                'validation_errors' => $e->errors(),
-                'input'             => $request->all(),
-            ]);
         }
 
         // Start with validated data
@@ -717,8 +713,6 @@ class PropertiesController extends Controller
         // Filter out any non-existent columns (safety)
         $columns = Schema::getColumnListing((new PropertiesModel)->getTable());
         $data    = array_intersect_key($data, array_flip($columns));
-
-        // dd($data);
 
         // Persist
         $property = PropertiesModel::create($data);
@@ -988,10 +982,7 @@ class PropertiesController extends Controller
                 'ai_language'           => 'nullable|string|max:50',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            dd([
-                'validation_errors' => $e->errors(),
-                'input'             => $request->all(),
-            ]);
+            
         }
 
         // Start with validated data
@@ -1172,8 +1163,6 @@ class PropertiesController extends Controller
 
         $columns = Schema::getColumnListing($property->getTable());
         $data    = array_intersect_key($data, array_flip($columns));
-
-        // dd($data);
 
         $property->update($data);
 

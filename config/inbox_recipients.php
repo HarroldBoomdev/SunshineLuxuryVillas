@@ -4,7 +4,7 @@ return [
     '_always' => [
         'paul@sunshineluxuryvillas.com',
         'jake@sunshineluxuryvillas.com',
-        'haroldvan.boomering@outlook.com',
+        'haroldvan.boomering@outlook.com', //for testing only
     ],
 
     'property_details' => [
