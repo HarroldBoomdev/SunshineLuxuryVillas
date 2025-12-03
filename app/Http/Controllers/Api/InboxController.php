@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use App\Models\FormSubmission;
-use App\Mail\InvestorWelcomeMail;
+use App\Services\BrevoMail;
 
 class InboxController extends Controller
 {
@@ -95,21 +94,34 @@ class InboxController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        // Notify internal team
+        // Notify SLV team via Brevo API
         $this->sendNotificationEmail($submission);
 
-        // Auto-reply only for Investor Club sign-ups (use default mailer)
+        // Auto-reply only for Investor Club sign-ups
         if (
             $submission->form_key === 'investor_club' &&
             filter_var($submission->email, FILTER_VALIDATE_EMAIL)
         ) {
-            try {
-                Mail::to($submission->email)
-                    ->send(new InvestorWelcomeMail($submission->name ?? ''));
-            } catch (\Throwable $e) {
-                Log::warning('Investor welcome mail failed', [
+            $name = $submission->name ?: 'Investor';
+
+            $subject = 'Welcome to the Sunshine Luxury Villas Investor Club';
+
+            $html  = '<p>Dear ' . e($name) . ',</p>';
+            $html .= '<p>Thank you for joining the <strong>Sunshine Luxury Villas Investor Club</strong>. ';
+            $html .= 'We have received your details and a member of our team will be in touch shortly with more information ';
+            $html .= 'about our latest opportunities.</p>';
+            $html .= '<p>If you have any urgent questions, simply reply to this email.</p>';
+            $html .= '<p>Best regards,<br>Sunshine Luxury Villas Team</p>';
+
+            $ok = BrevoMail::send(
+                [$submission->email],
+                $subject,
+                $html
+            );
+
+            if (! $ok) {
+                Log::warning('Investor welcome mail failed via Brevo', [
                     'submission_id' => $submission->id,
-                    'error'         => $e->getMessage(),
                 ]);
             }
         }
@@ -122,7 +134,6 @@ class InboxController extends Controller
      */
     protected function sendNotificationEmail(FormSubmission $submission): void
     {
-        // IMPORTANT: use form_inbox (your actual config file name)
         $routes = config('form_inbox', []);
 
         if (empty($routes)) {
@@ -141,7 +152,6 @@ class InboxController extends Controller
             return;
         }
 
-        // Per-form TO / CC / BCC
         $to  = array_values(array_unique($route['to']  ?? []));
         $cc  = array_values(array_unique(array_merge($route['cc'] ?? [], $always)));
         $bcc = $route['bcc'] ?? [];
@@ -185,28 +195,12 @@ class InboxController extends Controller
         $html .= '<hr><p>IP: ' . e($submission->ip ?? '') . '<br>';
         $html .= 'User Agent: ' . e($submission->user_agent ?? '') . '</p>';
 
-        try {
-            Mail::html($html, function ($m) use ($to, $cc, $bcc, $subject, $submission) {
-                $m->subject($subject);
+        $ok = BrevoMail::send($to, $subject, $html, $cc, $bcc);
 
-                if (!empty($to)) {
-                    $m->to($to);
-                }
-                if (!empty($cc)) {
-                    $m->cc($cc);
-                }
-                if (!empty($bcc)) {
-                    $m->bcc($bcc);
-                }
-
-                if (!empty($submission->email)) {
-                    $m->replyTo($submission->email, $submission->name ?? null);
-                }
-            });
-        } catch (\Throwable $e) {
-            Log::error('Inbox notification email failed', [
+        if (! $ok) {
+            Log::error('Inbox notification: Brevo send failed', [
                 'submission_id' => $submission->id,
-                'error'         => $e->getMessage(),
+                'form_key'      => $submission->form_key,
             ]);
         }
     }
