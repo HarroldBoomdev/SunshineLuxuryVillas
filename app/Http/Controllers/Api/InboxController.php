@@ -20,10 +20,9 @@ class InboxController extends Controller
         }
 
         if ($request->filled('type')) {
-            $type = $request->string('type');                 // e.g. investor-club
-            $formKey = str_replace('-', '_', $type);          // investor_club
+            $type    = $request->string('type');          // e.g. investor-club
+            $formKey = str_replace('-', '_', $type);      // investor_club
 
-            // group the OR properly so it doesn't break other filters
             $q->where(function ($qq) use ($type, $formKey) {
                 $qq->where('type', $type)
                    ->orWhere('form_key', $formKey);
@@ -96,24 +95,22 @@ class InboxController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        // ➜ Notify internal team (enquires@..., investorclub@..., plus _always list)
+        // Notify internal team
         $this->sendNotificationEmail($submission);
 
-        // 🔔 Auto-reply only for Investor Club sign-ups
+        // Auto-reply only for Investor Club sign-ups (use default mailer)
         if (
             $submission->form_key === 'investor_club' &&
             filter_var($submission->email, FILTER_VALIDATE_EMAIL)
         ) {
             try {
-                Mail::mailer('investorclub')
-                    ->to($submission->email)
+                Mail::to($submission->email)
                     ->send(new InvestorWelcomeMail($submission->name ?? ''));
             } catch (\Throwable $e) {
                 Log::warning('Investor welcome mail failed', [
                     'submission_id' => $submission->id,
                     'error'         => $e->getMessage(),
                 ]);
-                // don't break API response
             }
         }
 
@@ -121,14 +118,15 @@ class InboxController extends Controller
     }
 
     /**
-     * Send notification email to SLV team based on config/inbox.php
+     * Send notification email to SLV team based on config/form_inbox.php
      */
     protected function sendNotificationEmail(FormSubmission $submission): void
     {
-        $routes = config('inbox', []);
+        // IMPORTANT: use form_inbox (your actual config file name)
+        $routes = config('form_inbox', []);
 
         if (empty($routes)) {
-            Log::warning('Inbox notification: config/inbox.php missing or empty');
+            Log::warning('Inbox notification: config/form_inbox.php missing or empty');
             return;
         }
 
@@ -143,19 +141,18 @@ class InboxController extends Controller
             return;
         }
 
-        // Build recipients: specific route + _always
-        $to  = array_values(array_unique(array_merge($route['to'] ?? [], $always)));
-        $cc  = $route['cc']  ?? [];
+        // Per-form TO / CC / BCC
+        $to  = array_values(array_unique($route['to']  ?? []));
+        $cc  = array_values(array_unique(array_merge($route['cc'] ?? [], $always)));
         $bcc = $route['bcc'] ?? [];
 
-        if (empty($to)) {
+        if (empty($to) && empty($cc) && empty($bcc)) {
             Log::warning('Inbox notification: no recipients for form_key', [
                 'form_key' => $key,
             ]);
             return;
         }
 
-        // Read useful details from payload
         $payload  = $submission->payload ?? [];
         $msg      = $payload['message']   ?? null;
         $pageUrl  = $payload['page_url']  ?? ($payload['url'] ?? null);
@@ -163,7 +160,6 @@ class InboxController extends Controller
 
         $subject = 'New ' . $submission->type . ' enquiry from ' . ($submission->name ?: 'Website visitor');
 
-        // Simple HTML body
         $html  = '<p>You have a new enquiry from the website.</p>';
         $html .= '<p><strong>Name:</strong> '  . e($submission->name ?? '')  . '<br>';
         $html .=     '<strong>Email:</strong> ' . e($submission->email ?? '') . '<br>';
@@ -192,8 +188,10 @@ class InboxController extends Controller
         try {
             Mail::html($html, function ($m) use ($to, $cc, $bcc, $subject, $submission) {
                 $m->subject($subject);
-                $m->to($to);
 
+                if (!empty($to)) {
+                    $m->to($to);
+                }
                 if (!empty($cc)) {
                     $m->cc($cc);
                 }
@@ -201,7 +199,6 @@ class InboxController extends Controller
                     $m->bcc($bcc);
                 }
 
-                // So staff can reply directly to the lead
                 if (!empty($submission->email)) {
                     $m->replyTo($submission->email, $submission->name ?? null);
                 }
