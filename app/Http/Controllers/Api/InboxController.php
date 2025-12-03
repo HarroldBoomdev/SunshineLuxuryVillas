@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Models\FormSubmission;
 use Illuminate\Support\Facades\Mail;
+use App\Models\FormSubmission;
 use App\Mail\InvestorWelcomeMail;
 
 class InboxController extends Controller
@@ -52,11 +52,26 @@ class InboxController extends Controller
 
         // Merge loose fields into payload
         $payload = $data['payload'] ?? [];
-        if (!isset($payload['message']) && $request->filled('message')) $payload['message'] = (string) $request->input('message');
-        if (!isset($payload['message']) && !empty($data['enquiry']))   $payload['message'] = $data['enquiry'];
-        if (!isset($payload['url']) && !empty($data['url']))           $payload['url']     = $data['url'];
-        if (!isset($payload['page_url']) && $request->filled('page_url')) $payload['page_url'] = $request->string('page_url');
-        if (!isset($payload['referrer']) && $request->filled('referrer')) $payload['referrer'] = $request->string('referrer');
+
+        if (!isset($payload['message']) && $request->filled('message')) {
+            $payload['message'] = (string) $request->input('message');
+        }
+
+        if (!isset($payload['message']) && !empty($data['enquiry'])) {
+            $payload['message'] = $data['enquiry'];
+        }
+
+        if (!isset($payload['url']) && !empty($data['url'])) {
+            $payload['url'] = $data['url'];
+        }
+
+        if (!isset($payload['page_url']) && $request->filled('page_url')) {
+            $payload['page_url'] = $request->string('page_url');
+        }
+
+        if (!isset($payload['referrer']) && $request->filled('referrer')) {
+            $payload['referrer'] = $request->string('referrer');
+        }
 
         // Map to hyphenated type (what the Inbox UI uses)
         $type = match ($data['form_key']) {
@@ -81,6 +96,9 @@ class InboxController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        // ➜ Notify internal team (enquires@..., investorclub@..., plus _always list)
+        $this->sendNotificationEmail($submission);
+
         // 🔔 Auto-reply only for Investor Club sign-ups
         if (
             $submission->form_key === 'investor_club' &&
@@ -93,12 +111,106 @@ class InboxController extends Controller
             } catch (\Throwable $e) {
                 Log::warning('Investor welcome mail failed', [
                     'submission_id' => $submission->id,
-                    'error' => $e->getMessage(),
+                    'error'         => $e->getMessage(),
                 ]);
                 // don't break API response
             }
         }
 
         return response()->json(['ok' => true, 'id' => $submission->id], 201);
+    }
+
+    /**
+     * Send notification email to SLV team based on config/inbox.php
+     */
+    protected function sendNotificationEmail(FormSubmission $submission): void
+    {
+        $routes = config('inbox', []);
+
+        if (empty($routes)) {
+            Log::warning('Inbox notification: config/inbox.php missing or empty');
+            return;
+        }
+
+        $key    = $submission->form_key; // e.g. investor_club
+        $route  = $routes[$key] ?? ($routes['_default'] ?? null);
+        $always = $routes['_always'] ?? [];
+
+        if (!$route) {
+            Log::warning('Inbox notification: no route for form_key', [
+                'form_key' => $key,
+            ]);
+            return;
+        }
+
+        // Build recipients: specific route + _always
+        $to  = array_values(array_unique(array_merge($route['to'] ?? [], $always)));
+        $cc  = $route['cc']  ?? [];
+        $bcc = $route['bcc'] ?? [];
+
+        if (empty($to)) {
+            Log::warning('Inbox notification: no recipients for form_key', [
+                'form_key' => $key,
+            ]);
+            return;
+        }
+
+        // Read useful details from payload
+        $payload  = $submission->payload ?? [];
+        $msg      = $payload['message']   ?? null;
+        $pageUrl  = $payload['page_url']  ?? ($payload['url'] ?? null);
+        $referrer = $payload['referrer']  ?? null;
+
+        $subject = 'New ' . $submission->type . ' enquiry from ' . ($submission->name ?: 'Website visitor');
+
+        // Simple HTML body
+        $html  = '<p>You have a new enquiry from the website.</p>';
+        $html .= '<p><strong>Name:</strong> '  . e($submission->name ?? '')  . '<br>';
+        $html .=     '<strong>Email:</strong> ' . e($submission->email ?? '') . '<br>';
+        $html .=     '<strong>Phone:</strong> ' . e($submission->phone ?? '') . '<br>';
+        $html .=     '<strong>Type:</strong> '  . e($submission->form_key)    . '</p>';
+
+        if ($submission->reference) {
+            $html .= '<p><strong>Property Reference:</strong> ' . e($submission->reference) . '</p>';
+        }
+
+        if ($msg) {
+            $html .= '<p><strong>Message:</strong><br>' . nl2br(e($msg)) . '</p>';
+        }
+
+        if ($pageUrl) {
+            $html .= '<p><strong>Page URL:</strong> ' . e($pageUrl) . '</p>';
+        }
+
+        if ($referrer) {
+            $html .= '<p><strong>Referrer:</strong> ' . e($referrer) . '</p>';
+        }
+
+        $html .= '<hr><p>IP: ' . e($submission->ip ?? '') . '<br>';
+        $html .= 'User Agent: ' . e($submission->user_agent ?? '') . '</p>';
+
+        try {
+            Mail::html($html, function ($m) use ($to, $cc, $bcc, $subject, $submission) {
+                $m->subject($subject);
+                $m->to($to);
+
+                if (!empty($cc)) {
+                    $m->cc($cc);
+                }
+                if (!empty($bcc)) {
+                    $m->bcc($bcc);
+                }
+
+                // So staff can reply directly to the lead
+                if (!empty($submission->email)) {
+                    $m->replyTo($submission->email, $submission->name ?? null);
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error('Inbox notification email failed', [
+                'submission_id' => $submission->id,
+                'error'         => $e->getMessage(),
+            ]);
+        }
     }
 }
