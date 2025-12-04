@@ -334,185 +334,182 @@ class PropertiesController extends Controller
     public function store(Request $request)
     {
         // 1) Validate
-        try {
-            $validated = $request->validate([
-                // =========================
-                // STEP 1 – BASIC PROPERTY
-                // =========================
-                'title'                 => 'required|string|max:255',
-                'property_description'  => 'nullable|string',
-                'property_type'         => 'required|string',
-                'floors'                => 'nullable|integer',
-                'parkingSpaces'         => 'nullable|integer',
-                'bedrooms'              => 'nullable|integer',
-                'bathrooms'             => 'nullable|integer',
+        $validated = $request->validate([
+            // =========================
+            // STEP 1 – BASIC PROPERTY
+            // =========================
+            'title'                 => 'required|string|max:255',
+            'property_description'  => 'nullable|string',
+            'property_type'         => 'required|string',
+            'floors'                => 'nullable|integer',
+            'parkingSpaces'         => 'nullable|integer',
+            'bedrooms'              => 'nullable|integer',
+            'bathrooms'             => 'nullable|integer',
 
-                // Step 1 extras
-                'poa'                   => 'nullable|boolean',
-                'floor'                 => 'nullable|integer|min:0',
-                'title_deeds'           => 'nullable|in:Yes,No',
-                'long_let'              => 'nullable|string|max:10',
-                'leasehold'             => 'nullable|string|max:10',
-                'terrace'               => 'nullable|numeric',
-                'pool'                  => 'nullable|string|max:255',
-                'pool_description'      => 'nullable|string',
+            // Step 1 extras
+            'poa'                   => 'nullable|boolean',
+            'floor'                 => 'nullable|integer|min:0',
+            'title_deeds'           => 'nullable|in:Yes,No',
+            'long_let'              => 'nullable|string|max:10',
+            'leasehold'             => 'nullable|string|max:10',
+            'terrace'               => 'nullable|numeric',
+            'pool'                  => 'nullable|string|max:255',
+            'pool_description'      => 'nullable|string',
 
-                // Price panel
-                'currency'              => 'nullable|string|max:3',
-                'price'                 => 'nullable|numeric',    // simple price
-                'price_current'         => 'nullable|numeric|min:0',
-                'price_original'        => 'nullable|numeric|min:0',
-                'poa_current'           => 'nullable|boolean',
-                'reduction_percent'     => 'nullable|numeric|min:0|max:100',
-                'reduction_value'       => 'nullable|numeric|min:0',
-                'display_as_percentage' => 'nullable|in:Yes,No',
-                'monthly_rent'          => 'nullable|numeric|min:0',
+            // Price panel
+            'currency'              => 'nullable|string|max:3',
+            'price'                 => 'nullable|numeric',    // simple price
+            'price_current'         => 'nullable|numeric|min:0',
+            'price_original'        => 'nullable|numeric|min:0',
+            'poa_current'           => 'nullable|boolean',
+            'reduction_percent'     => 'nullable|numeric|min:0|max:100',
+            'reduction_value'       => 'nullable|numeric|min:0',
+            'display_as_percentage' => 'nullable|in:Yes,No',
+            'monthly_rent'          => 'nullable|numeric|min:0',
 
-                // Years
-                'year_construction'     => 'nullable|integer',
-                'year_renovation'       => 'nullable|integer|gte:year_construction',
+            // Years
+            'year_construction'     => 'nullable|integer',
+            'year_renovation'       => 'nullable|integer|gte:year_construction',
 
-                // Misc
-                'furnished'             => 'nullable|string',
-                'reference'             => 'required_with:photos|string|max:255',
-                'status'                => 'nullable|string',
-                'orientation'           => 'nullable|string',
-                'energyEfficiency'      => 'nullable|string',
-                'vat'                   => 'nullable|string',
+            // Misc
+            'furnished'             => 'nullable|string',
+            'reference'             => 'required_with:photos|string|max:255',
+            'status'                => 'nullable|string',
+            'orientation'           => 'nullable|string',
+            'energyEfficiency'      => 'nullable|string',
+            'vat'                   => 'nullable|string',
 
-                // =========================
-                // STEP 5 – AREAS (m²)
-                // (matches Step 5 Blade: area_covered, area_plot, etc.)
-                // =========================
-                'area_covered'          => 'nullable|numeric',
-                'area_plot'             => 'nullable|numeric',
-                'area_roof_garden'      => 'nullable|numeric',
-                'area_attic'            => 'nullable|numeric',
-                'area_cov_veranda'      => 'nullable|numeric',
-                'area_uncov_veranda'    => 'nullable|numeric',
-                'area_cov_parking'      => 'nullable|numeric',
-                'area_basement'         => 'nullable|numeric',
-                'area_courtyard'        => 'nullable|numeric',
-                'area_garden'           => 'nullable|numeric',
+            // =========================
+            // STEP 5 – AREAS (m²)
+            // (matches Step 5 Blade: area_covered, area_plot, etc.)
+            // =========================
+            'area_covered'          => 'nullable|numeric',
+            'area_plot'             => 'nullable|numeric',
+            'area_roof_garden'      => 'nullable|numeric',
+            'area_attic'            => 'nullable|numeric',
+            'area_cov_veranda'      => 'nullable|numeric',
+            'area_uncov_veranda'    => 'nullable|numeric',
+            'area_cov_parking'      => 'nullable|numeric',
+            'area_basement'         => 'nullable|numeric',
+            'area_courtyard'        => 'nullable|numeric',
+            'area_garden'           => 'nullable|numeric',
 
-                // =========================
-                // STEP 2 – PROPERTY LOCATION
-                // =========================
-                'country'               => 'nullable|string|max:255',
-                'region'                => 'nullable|string|max:255',
-                'town'                  => 'nullable|string|max:255',
-                'locality'              => 'nullable|string|max:255',
+            // =========================
+            // STEP 2 – PROPERTY LOCATION
+            // =========================
+            'country'               => 'nullable|string|max:255',
+            'region'                => 'nullable|string|max:255',
+            'town'                  => 'nullable|string|max:255',
+            'locality'              => 'nullable|string|max:255',
 
-                'latitude'              => 'nullable|numeric',
-                'longitude'             => 'nullable|numeric',
-                'map_address'           => 'nullable|string',
-                'accuracy'              => 'nullable|string|max:255',
+            'latitude'              => 'nullable|numeric',
+            'longitude'             => 'nullable|numeric',
+            'map_address'           => 'nullable|string',
+            'accuracy'              => 'nullable|string|max:255',
 
-                // Extra owner/location (manual / imports)
-                'owner'                 => 'nullable|string',
-                'refId'                 => 'nullable|string',
-                'address'               => 'nullable|string',
+            // Extra owner/location (manual / imports)
+            'owner'                 => 'nullable|string',
+            'refId'                 => 'nullable|string',
+            'address'               => 'nullable|string',
 
-                // =========================
-                // ARRAYS / JSON
-                // =========================
-                'labels'                => 'nullable|array',
-                'labels.*'              => 'nullable|string|max:255',
-                'image_order'           => 'nullable|array',
-                'photos'                => 'nullable|array',
+            // =========================
+            // ARRAYS / JSON
+            // =========================
+            'labels'                => 'nullable|array',
+            'labels.*'              => 'nullable|string|max:255',
+            'image_order'           => 'nullable|array',
+            'photos'                => 'nullable|array',
 
-                'display_as'            => 'nullable|array',
-                'display_as.*'          => 'nullable|string|max:255',
-                'external'              => 'nullable|array',
-                'external.*'            => 'nullable|string|max:255',
-                'other'                 => 'nullable|array',
-                'other.*'               => 'nullable|string|max:255',
-                'banner'                => 'nullable|string|max:255',
+            'display_as'            => 'nullable|array',
+            'display_as.*'          => 'nullable|string|max:255',
+            'external'              => 'nullable|array',
+            'external.*'            => 'nullable|string|max:255',
+            'other'                 => 'nullable|array',
+            'other.*'               => 'nullable|string|max:255',
+            'banner'                => 'nullable|string|max:255',
 
-                // =========================
-                // STEP 7 – VENDOR / SOLICITOR / BANK
-                // =========================
-                // vendor
-                'first_name'           => 'nullable|string|max:255',
-                'last_name'            => 'nullable|string|max:255',
-                'telephone'            => 'nullable|string|max:255',
-                'mobile'               => 'nullable|string|max:255',
-                'email'                => 'nullable|email|max:255',
-                'type'                 => 'nullable|string|max:255',
-                'source'               => 'nullable|string|max:255',
-                'notes'                => 'nullable|string',
+            // =========================
+            // STEP 7 – VENDOR / SOLICITOR / BANK
+            // =========================
+            // vendor
+            'first_name'           => 'nullable|string|max:255',
+            'last_name'            => 'nullable|string|max:255',
+            'telephone'            => 'nullable|string|max:255',
+            'mobile'               => 'nullable|string|max:255',
+            'email'                => 'nullable|email|max:255',
+            'type'                 => 'nullable|string|max:255',
+            'source'               => 'nullable|string|max:255',
+            'notes'                => 'nullable|string',
 
-                // solicitor
-                'sol_first_name'       => 'nullable|string|max:255',
-                'sol_last_name'        => 'nullable|string|max:255',
-                'sol_phone_day'        => 'nullable|string|max:255',
-                'sol_email'            => 'nullable|email|max:255',
-                'sol_address'          => 'nullable|string',
+            // solicitor
+            'sol_first_name'       => 'nullable|string|max:255',
+            'sol_last_name'        => 'nullable|string|max:255',
+            'sol_phone_day'        => 'nullable|string|max:255',
+            'sol_email'            => 'nullable|email|max:255',
+            'sol_address'          => 'nullable|string',
 
-                // bank
-                'bank_name'            => 'nullable|string|max:255',
-                'bank_sort_code'       => 'nullable|string|max:255',
-                'bank_account_name'    => 'nullable|string|max:255',
-                'bank_account_number'  => 'nullable|string|max:255',
-                'bank_address'         => 'nullable|string',
+            // bank
+            'bank_name'            => 'nullable|string|max:255',
+            'bank_sort_code'       => 'nullable|string|max:255',
+            'bank_account_name'    => 'nullable|string|max:255',
+            'bank_account_number'  => 'nullable|string|max:255',
+            'bank_address'         => 'nullable|string',
 
-                // vendor address & map (Step 7 Blade names)
-                'building_name'        => 'nullable|string|max:255',
-                'address_line1'        => 'nullable|string|max:255',
-                'address_line2'        => 'nullable|string|max:255',
-                'address_line3'        => 'nullable|string|max:255',
-                'postcode'             => 'nullable|string|max:255',
-                'geolocation'          => 'nullable|string|max:255',
-                'lat'                  => 'nullable|string|max:50',
-                'lng'                  => 'nullable|string|max:50',
+            // vendor address & map (Step 7 Blade names)
+            'building_name'        => 'nullable|string|max:255',
+            'address_line1'        => 'nullable|string|max:255',
+            'address_line2'        => 'nullable|string|max:255',
+            'address_line3'        => 'nullable|string|max:255',
+            'postcode'             => 'nullable|string|max:255',
+            'geolocation'          => 'nullable|string|max:255',
+            'lat'                  => 'nullable|string|max:50',
+            'lng'                  => 'nullable|string|max:50',
 
-                // =========================
-                // LAND FIELDS
-                // =========================
-                'regnum'                => 'nullable|string|max:255',
-                'plotnum'               => 'nullable|string|max:255',
-                'section'               => 'nullable|string|max:255',
-                'sheetPlan'             => 'nullable|string|max:255',
-                'titleDead'             => 'nullable|in:-,available,in_process,no_title',
-                'share'                 => 'nullable|numeric',
+            // =========================
+            // LAND FIELDS
+            // =========================
+            'regnum'                => 'nullable|string|max:255',
+            'plotnum'               => 'nullable|string|max:255',
+            'section'               => 'nullable|string|max:255',
+            'sheetPlan'             => 'nullable|string|max:255',
+            'titleDead'             => 'nullable|in:-,available,in_process,no_title',
+            'share'                 => 'nullable|numeric',
 
-                // =========================
-                // DISTANCES (km)
-                // (amenities, airport, etc. from Step 5 top)
-                // =========================
-                'amenities'             => 'nullable|numeric',
-                'airport'               => 'nullable|numeric',
-                'sea'                   => 'nullable|numeric',
-                'publicTransport'       => 'nullable|numeric',
-                'schools'               => 'nullable|numeric',
-                'resort'                => 'nullable|numeric',
+            // =========================
+            // DISTANCES (km)
+            // (amenities, airport, etc. from Step 5 top)
+            // =========================
+            'amenities'             => 'nullable|numeric',
+            'airport'               => 'nullable|numeric',
+            'sea'                   => 'nullable|numeric',
+            'publicTransport'       => 'nullable|numeric',
+            'schools'               => 'nullable|numeric',
+            'resort'                => 'nullable|numeric',
 
-                // =========================
-                // FILES (IMAGES)
-                // =========================
-                'titledeed'             => 'nullable',          // will be filled by processFileUploads
-                'title_deed'            => 'nullable|array',
-                'title_deed.*'          => 'file|image|max:30720',
+            // =========================
+            // FILES (IMAGES)
+            // =========================
+            'titledeed'             => 'nullable',          // will be filled by processFileUploads
+            'title_deed'            => 'nullable|array',
+            'title_deed.*'          => 'file|image|max:30720',
 
-                'floor_plans'           => 'nullable|array',
-                'floor_plans.*'         => 'file|image|max:30720',
+            'floor_plans'           => 'nullable|array',
+            'floor_plans.*'         => 'file|image|max:30720',
 
-                // =========================
-                // STEP 9 – VIDEOS / TOUR / DOCS
-                // =========================
-                'youtube1'              => 'nullable|string|max:255',
-                'youtube2'              => 'nullable|string|max:255',
-                'virtual_tour'          => 'nullable|string|max:255',
-                'document'              => 'nullable|file|max:51200', // ~50MB
+            // =========================
+            // STEP 9 – VIDEOS / TOUR / DOCS
+            // =========================
+            'youtube1'              => 'nullable|string|max:255',
+            'youtube2'              => 'nullable|string|max:255',
+            'virtual_tour'          => 'nullable|string|max:255',
+            'document'              => 'nullable|file|max:51200', // ~50MB
 
-                // =========================
-                // STEP 10 – STATUS (+ optional AI language)
-                // =========================
-                'property_status'       => 'nullable|in:Active,', // '' (None) or 'Active'
-                'ai_language'           => 'nullable|string|max:50',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-        }
+            // =========================
+            // STEP 10 – STATUS (+ optional AI language)
+            // =========================
+            'property_status'       => 'nullable|in:Active,', // '' (None) or 'Active'
+            'ai_language'           => 'nullable|string|max:50',
+        ]);
 
         // Start with validated data
         $data = $validated;
@@ -724,6 +721,7 @@ class PropertiesController extends Controller
             ->with('success', 'Property added successfully.');
     }
 
+
     public function validateRequest(Request $request)
     {
         return $request->validate([
@@ -806,184 +804,180 @@ class PropertiesController extends Controller
     public function update(Request $request, PropertiesModel $property)
     {
         // 1) Validate (same rules as store)
-        try {
-            $validated = $request->validate([
-                // =========================
-                // STEP 1 – BASIC PROPERTY
-                // =========================
-                'title'                 => 'required|string|max:255',
-                'property_description'  => 'nullable|string',
-                'property_type'         => 'required|string',
-                'floors'                => 'nullable|integer',
-                'parkingSpaces'         => 'nullable|integer',
-                'bedrooms'              => 'nullable|integer',
-                'bathrooms'             => 'nullable|integer',
+        $validated = $request->validate([
+            // =========================
+            // STEP 1 – BASIC PROPERTY
+            // =========================
+            'title'                 => 'required|string|max:255',
+            'property_description'  => 'nullable|string',
+            'property_type'         => 'required|string',
+            'floors'                => 'nullable|integer',
+            'parkingSpaces'         => 'nullable|integer',
+            'bedrooms'              => 'nullable|integer',
+            'bathrooms'             => 'nullable|integer',
 
-                // Step 1 extras
-                'poa'                   => 'nullable|boolean',
-                'floor'                 => 'nullable|integer|min:0',
-                'title_deeds'           => 'nullable|in:Yes,No',
-                'long_let'              => 'nullable|string|max:10',
-                'leasehold'             => 'nullable|string|max:10',
-                'terrace'               => 'nullable|numeric',
-                'pool'                  => 'nullable|string|max:255',
-                'pool_description'      => 'nullable|string',
+            // Step 1 extras
+            'poa'                   => 'nullable|boolean',
+            'floor'                 => 'nullable|integer|min:0',
+            'title_deeds'           => 'nullable|in:Yes,No',
+            'long_let'              => 'nullable|string|max:10',
+            'leasehold'             => 'nullable|string|max:10',
+            'terrace'               => 'nullable|numeric',
+            'pool'                  => 'nullable|string|max:255',
+            'pool_description'      => 'nullable|string',
 
-                // Price panel
-                'currency'              => 'nullable|string|max:3',
-                'price'                 => 'nullable|numeric',
-                'price_current'         => 'nullable|numeric|min:0',
-                'price_original'        => 'nullable|numeric|min:0',
-                'poa_current'           => 'nullable|boolean',
-                'reduction_percent'     => 'nullable|numeric|min:0|max:100',
-                'reduction_value'       => 'nullable|numeric|min:0',
-                'display_as_percentage' => 'nullable|in:Yes,No',
-                'monthly_rent'          => 'nullable|numeric|min:0',
+            // Price panel
+            'currency'              => 'nullable|string|max:3',
+            'price'                 => 'nullable|numeric',
+            'price_current'         => 'nullable|numeric|min:0',
+            'price_original'        => 'nullable|numeric|min:0',
+            'poa_current'           => 'nullable|boolean',
+            'reduction_percent'     => 'nullable|numeric|min:0|max:100',
+            'reduction_value'       => 'nullable|numeric|min:0',
+            'display_as_percentage' => 'nullable|in:Yes,No',
+            'monthly_rent'          => 'nullable|numeric|min:0',
 
-                // Years
-                'year_construction'     => 'nullable|integer',
-                'year_renovation'       => 'nullable|integer|gte:year_construction',
+            // Years
+            'year_construction'     => 'nullable|integer',
+            'year_renovation'       => 'nullable|integer|gte:year_construction',
 
-                // Misc
-                'furnished'             => 'nullable|string',
-                'reference'             => 'required_with:photos|string|max:255',
-                'status'                => 'nullable|string',
-                'orientation'           => 'nullable|string',
-                'energyEfficiency'      => 'nullable|string',
-                'vat'                   => 'nullable|string',
+            // Misc
+            'furnished'             => 'nullable|string',
+            'reference'             => 'required_with:photos|string|max:255',
+            'status'                => 'nullable|string',
+            'orientation'           => 'nullable|string',
+            'energyEfficiency'      => 'nullable|string',
+            'vat'                   => 'nullable|string',
 
-                // =========================
-                // STEP 5 – AREAS (m²)
-                // =========================
-                'area_covered'          => 'nullable|numeric',
-                'area_plot'             => 'nullable|numeric',
-                'area_roof_garden'      => 'nullable|numeric',
-                'area_attic'            => 'nullable|numeric',
-                'area_cov_veranda'      => 'nullable|numeric',
-                'area_uncov_veranda'    => 'nullable|numeric',
-                'area_cov_parking'      => 'nullable|numeric',
-                'area_basement'         => 'nullable|numeric',
-                'area_courtyard'        => 'nullable|numeric',
-                'area_garden'           => 'nullable|numeric',
+            // =========================
+            // STEP 5 – AREAS (m²)
+            // =========================
+            'area_covered'          => 'nullable|numeric',
+            'area_plot'             => 'nullable|numeric',
+            'area_roof_garden'      => 'nullable|numeric',
+            'area_attic'            => 'nullable|numeric',
+            'area_cov_veranda'      => 'nullable|numeric',
+            'area_uncov_veranda'    => 'nullable|numeric',
+            'area_cov_parking'      => 'nullable|numeric',
+            'area_basement'         => 'nullable|numeric',
+            'area_courtyard'        => 'nullable|numeric',
+            'area_garden'           => 'nullable|numeric',
 
-                // =========================
-                // STEP 2 – PROPERTY LOCATION
-                // =========================
-                'country'               => 'nullable|string|max:255',
-                'region'                => 'nullable|string|max:255',
-                'town'                  => 'nullable|string|max:255',
-                'locality'              => 'nullable|string|max:255',
+            // =========================
+            // STEP 2 – PROPERTY LOCATION
+            // =========================
+            'country'               => 'nullable|string|max:255',
+            'region'                => 'nullable|string|max:255',
+            'town'                  => 'nullable|string|max:255',
+            'locality'              => 'nullable|string|max:255',
 
-                'latitude'              => 'nullable|numeric',
-                'longitude'             => 'nullable|numeric',
-                'map_address'           => 'nullable|string',
-                'accuracy'              => 'nullable|string|max:255',
+            'latitude'              => 'nullable|numeric',
+            'longitude'             => 'nullable|numeric',
+            'map_address'           => 'nullable|string',
+            'accuracy'              => 'nullable|string|max:255',
 
-                // Extra owner/location (manual / imports)
-                'owner'                 => 'nullable|string',
-                'refId'                 => 'nullable|string',
-                'address'               => 'nullable|string',
+            // Extra owner/location (manual / imports)
+            'owner'                 => 'nullable|string',
+            'refId'                 => 'nullable|string',
+            'address'               => 'nullable|string',
 
-                // =========================
-                // ARRAYS / JSON
-                // =========================
-                'labels'                => 'nullable|array',
-                'labels.*'              => 'nullable|string|max:255',
-                'image_order'           => 'nullable|array',
-                'photos'                => 'nullable|array',
+            // =========================
+            // ARRAYS / JSON
+            // =========================
+            'labels'                => 'nullable|array',
+            'labels.*'              => 'nullable|string|max:255',
+            'image_order'           => 'nullable|array',
+            'photos'                => 'nullable|array',
 
-                'display_as'            => 'nullable|array',
-                'display_as.*'          => 'nullable|string|max:255',
-                'external'              => 'nullable|array',
-                'external.*'            => 'nullable|string|max:255',
-                'other'                 => 'nullable|array',
-                'other.*'               => 'nullable|string|max:255',
-                'banner'                => 'nullable|string|max:255',
+            'display_as'            => 'nullable|array',
+            'display_as.*'          => 'nullable|string|max:255',
+            'external'              => 'nullable|array',
+            'external.*'            => 'nullable|string|max:255',
+            'other'                 => 'nullable|array',
+            'other.*'               => 'nullable|string|max:255',
+            'banner'                => 'nullable|string|max:255',
 
-                // =========================
-                // STEP 7 – VENDOR / SOLICITOR / BANK
-                // =========================
-                // vendor
-                'first_name'           => 'nullable|string|max:255',
-                'last_name'            => 'nullable|string|max:255',
-                'telephone'            => 'nullable|string|max:255',
-                'mobile'               => 'nullable|string|max:255',
-                'email'                => 'nullable|email|max:255',
-                'type'                 => 'nullable|string|max:255',
-                'source'               => 'nullable|string|max:255',
-                'notes'                => 'nullable|string',
+            // =========================
+            // STEP 7 – VENDOR / SOLICITOR / BANK
+            // =========================
+            // vendor
+            'first_name'           => 'nullable|string|max:255',
+            'last_name'            => 'nullable|string|max:255',
+            'telephone'            => 'nullable|string|max:255',
+            'mobile'               => 'nullable|string|max:255',
+            'email'                => 'nullable|email|max:255',
+            'type'                 => 'nullable|string|max:255',
+            'source'               => 'nullable|string|max:255',
+            'notes'                => 'nullable|string',
 
-                // solicitor
-                'sol_first_name'       => 'nullable|string|max:255',
-                'sol_last_name'        => 'nullable|string|max:255',
-                'sol_phone_day'        => 'nullable|string|max:255',
-                'sol_email'            => 'nullable|email|max:255',
-                'sol_address'          => 'nullable|string',
+            // solicitor
+            'sol_first_name'       => 'nullable|string|max:255',
+            'sol_last_name'        => 'nullable|string|max:255',
+            'sol_phone_day'        => 'nullable|string|max:255',
+            'sol_email'            => 'nullable|email|max:255',
+            'sol_address'          => 'nullable|string',
 
-                // bank
-                'bank_name'            => 'nullable|string|max:255',
-                'bank_sort_code'       => 'nullable|string|max:255',
-                'bank_account_name'    => 'nullable|string|max:255',
-                'bank_account_number'  => 'nullable|string|max:255',
-                'bank_address'         => 'nullable|string',
+            // bank
+            'bank_name'            => 'nullable|string|max:255',
+            'bank_sort_code'       => 'nullable|string|max:255',
+            'bank_account_name'    => 'nullable|string|max:255',
+            'bank_account_number'  => 'nullable|string|max:255',
+            'bank_address'         => 'nullable|string',
 
-                // vendor address & map (Step 7 Blade names)
-                'building_name'        => 'nullable|string|max:255',
-                'address_line1'        => 'nullable|string|max:255',
-                'address_line2'        => 'nullable|string|max:255',
-                'address_line3'        => 'nullable|string|max:255',
-                'postcode'             => 'nullable|string|max:255',
-                'geolocation'          => 'nullable|string|max:255',
-                'lat'                  => 'nullable|string|max:50',
-                'lng'                  => 'nullable|string|max:50',
+            // vendor address & map (Step 7 Blade names)
+            'building_name'        => 'nullable|string|max:255',
+            'address_line1'        => 'nullable|string|max:255',
+            'address_line2'        => 'nullable|string|max:255',
+            'address_line3'        => 'nullable|string|max:255',
+            'postcode'             => 'nullable|string|max:255',
+            'geolocation'          => 'nullable|string|max:255',
+            'lat'                  => 'nullable|string|max:50',
+            'lng'                  => 'nullable|string|max:50',
 
-                // =========================
-                // LAND FIELDS
-                // =========================
-                'regnum'                => 'nullable|string|max:255',
-                'plotnum'               => 'nullable|string|max:255',
-                'section'               => 'nullable|string|max:255',
-                'sheetPlan'             => 'nullable|string|max:255',
-                'titleDead'             => 'nullable|in:-,available,in_process,no_title',
-                'share'                 => 'nullable|numeric',
+            // =========================
+            // LAND FIELDS
+            // =========================
+            'regnum'                => 'nullable|string|max:255',
+            'plotnum'               => 'nullable|string|max:255',
+            'section'               => 'nullable|string|max:255',
+            'sheetPlan'             => 'nullable|string|max:255',
+            'titleDead'             => 'nullable|in:-,available,in_process,no_title',
+            'share'                 => 'nullable|numeric',
 
-                // =========================
-                // DISTANCES (km)
-                // =========================
-                'amenities'             => 'nullable|numeric',
-                'airport'               => 'nullable|numeric',
-                'sea'                   => 'nullable|numeric',
-                'publicTransport'       => 'nullable|numeric',
-                'schools'               => 'nullable|numeric',
-                'resort'                => 'nullable|numeric',
+            // =========================
+            // DISTANCES (km)
+            // =========================
+            'amenities'             => 'nullable|numeric',
+            'airport'               => 'nullable|numeric',
+            'sea'                   => 'nullable|numeric',
+            'publicTransport'       => 'nullable|numeric',
+            'schools'               => 'nullable|numeric',
+            'resort'                => 'nullable|numeric',
 
-                // =========================
-                // FILES (IMAGES)
-                // =========================
-                'titledeed'             => 'nullable',
-                'title_deed'            => 'nullable|array',
-                'title_deed.*'          => 'file|image|max:30720',
+            // =========================
+            // FILES (IMAGES)
+            // =========================
+            'titledeed'             => 'nullable',
+            'title_deed'            => 'nullable|array',
+            'title_deed.*'          => 'file|image|max:30720',
 
-                'floor_plans'           => 'nullable|array',
-                'floor_plans.*'         => 'file|image|max:30720',
+            'floor_plans'           => 'nullable|array',
+            'floor_plans.*'         => 'file|image|max:30720',
 
-                // =========================
-                // STEP 9 – VIDEOS / TOUR / DOCS
-                // =========================
-                'youtube1'              => 'nullable|string|max:255',
-                'youtube2'              => 'nullable|string|max:255',
-                'virtual_tour'          => 'nullable|string|max:255',
-                'document'              => 'nullable|file|max:51200',
+            // =========================
+            // STEP 9 – VIDEOS / TOUR / DOCS
+            // =========================
+            'youtube1'              => 'nullable|string|max:255',
+            'youtube2'              => 'nullable|string|max:255',
+            'virtual_tour'          => 'nullable|string|max:255',
+            'document'              => 'nullable|file|max:51200',
 
-                // =========================
-                // STEP 10 – STATUS (+ optional AI language)
-                // =========================
-                'property_status'       => 'nullable|in:Active,',
-                'ai_language'           => 'nullable|string|max:50',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            
-        }
+            // =========================
+            // STEP 10 – STATUS (+ optional AI language)
+            // =========================
+            'property_status'       => 'nullable|in:Active,',
+            'ai_language'           => 'nullable|string|max:50',
+        ]);
 
         // Start with validated data
         $data = $validated;
@@ -996,7 +990,8 @@ class PropertiesController extends Controller
         }
 
         // 3) Handle file uploads (photos, floor_plans, titledeed, etc.)
-        $data = $this->processFileUploads($request, $data, $property); // if your helper supports passing model; else remove $property
+        //    NOTE: helper only accepts (Request, array), so no $property here
+        $data = $this->processFileUploads($request, $data);
 
         // 4) Normalize Areas & Distances (area_* → *_m2, amenities → amenities_km, etc.)
         $data = $this->normalizeAreaAndDistanceKeys($data);
@@ -1172,6 +1167,7 @@ class PropertiesController extends Controller
             ->route('properties.index')
             ->with('success', 'Property updated successfully.');
     }
+
 
 
     public function downloadImages($id)
