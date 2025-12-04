@@ -41,7 +41,6 @@ use App\Http\Middleware\Authenticate as AppAuthenticate;
 use App\Http\Controllers\Reports\HistoricalListingsController;
 use App\Http\Controllers\FeaturedPropertyController;
 
-use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\LocationsController;
 
 use App\Http\Controllers\FeedController;
@@ -392,7 +391,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/new-property', function () {
         return view('forms.new-property'); // exactly this path
     });
-    Route::post('/new-property', [PropertyController::class, 'store'])->name('properties.store');
+    Route::post('/new-property', [PropertiesController::class, 'store'])->name('properties.store');
 
     Route::get('/locations/regions',    [LocationsController::class, 'regions']);
     Route::get('/locations/towns',      [LocationsController::class, 'towns']);
