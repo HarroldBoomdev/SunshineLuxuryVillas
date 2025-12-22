@@ -48,7 +48,10 @@
               <span class="opt-control">
                 <input class="form-check-input" type="radio"
                   name="banner" value="{{ $opt }}"
-                  @checked(old('banner', $property->banner ?? null) === $opt)>
+                  @checked(
+                    old('banner', $property->banner ?? null) === $opt
+                    || (!old('banner') && empty($property->banner) && $opt === 'No Banner')
+                    )
               </span>
             </label>
           @endforeach

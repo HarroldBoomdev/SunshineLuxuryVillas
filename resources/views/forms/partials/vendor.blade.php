@@ -181,17 +181,17 @@
 
             <div class="col-md-4">
                 <label class="form-label">Locality</label>
-                <input type="text" id="locality" name="locality" class="form-control">
+                <input type="text" id="vendor_locality" name="vendor_locality" class="form-control">
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Town</label>
-                <input type="text" id="town" name="town" class="form-control">
+                <input type="text" id="vendor_town" name="vendor_town" class="form-control">
             </div>
 
             <div class="col-md-4">
                 <label class="form-label">Region</label>
-                <input type="text" id="region" name="region" class="form-control">
+                <input type="text" id="vendor_region" name="vendor_region" class="form-control">
             </div>
 
             <div class="col-md-4">
@@ -201,7 +201,7 @@
 
             <div class="col-md-4">
                 <label class="form-label">Country</label>
-                <select id="country" name="country" class="form-select">
+                <select id="vendor_country" name="vendor_country" class="form-select">
                     <option value="">- No Country -</option>
                     <option value="Cyprus">Cyprus</option>
                     <option value="UK">United Kingdom</option>
@@ -286,10 +286,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const get = (t) => c.find((x) => x.types.includes(t))?.long_name ?? "";
 
         document.getElementById("addr1").value = get("route");
-        document.getElementById("town").value = get("locality");
-        document.getElementById("region").value = get("administrative_area_level_1");
+        document.getElementById("vendor_town").value = get("locality");
+        document.getElementById("vendor_region").value = get("administrative_area_level_1");
         document.getElementById("postcode").value = get("postal_code");
-        document.getElementById("country").value = get("country");
+        document.getElementById("vendor_country").value = get("country");
         document.getElementById("building_name").value = get("premise") || get("subpremise") || "";
     }
 });

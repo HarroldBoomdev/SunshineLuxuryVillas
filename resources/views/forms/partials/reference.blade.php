@@ -19,11 +19,21 @@
           </div>
 
           <div class="col-md-2 d-flex align-items-end">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="poa" name="poa">
-              <label for="poa" class="form-check-label">POA (hide price)</label>
+            <!-- Always send poa -->
+            <input type="hidden" name="poa" value="0">
+                <div class="form-check">
+                    <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="poa"
+                    name="poa"
+                    value="1"
+                    >
+                    <label for="poa" class="form-check-label">
+                    POA (hide price)
+                    </label>
+                </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -56,6 +66,7 @@
             <div class="col-md-2" id="floorCol" style="display:none;">
                 <label class="form-label">Floor</label>
                 <input type="number" min="0" class="form-control" name="floor" id="floor" placeholder="e.g. 5">
+                <div class="invalid-feedback">Floor is required for Apartments / Penthouses.</div>
             </div>
 
             <!-- Has Title Deeds -->
@@ -144,6 +155,7 @@
                 <input type="text" class="form-control" name="pool_description" id="pool_description"
                     placeholder="Enter pool details (e.g. Infinity, Heated, Shared)">
             </div>
+            <div class="invalid-feedback">Pool description is required when Pool = Yes.</div>
             </div>
 
             </div>
@@ -293,83 +305,92 @@
 </style>
 
 <script>
-
 document.addEventListener('DOMContentLoaded', () => {
-  // POA on the Price panel
-  const poa = document.getElementById('poa_current');
-  const priceCur = document.getElementById('price_current');
-  poa?.addEventListener('change', () => {
-    priceCur.disabled = poa.checked;
-    if (poa.checked) priceCur.value = '';
+  // ---- POA current (price panel) ----
+  const poaCurrent = document.getElementById('poa_current');
+  const priceCur   = document.getElementById('price_current');
+
+  poaCurrent?.addEventListener('change', () => {
+    if (!priceCur) return;
+    priceCur.disabled = poaCurrent.checked;
+    if (poaCurrent.checked) priceCur.value = '';
   });
 
-  // Reduction auto-calc between % and value
+  // ---- Reduction auto-calc ----
   const priceOrig = document.getElementById('price_original');
   const priceNow  = document.getElementById('price_current');
   const redPct    = document.getElementById('reduction_percent');
   const redVal    = document.getElementById('reduction_value');
 
-  function toNum(v){ return parseFloat(v || '0') || 0; }
+  const toNum = (v) => parseFloat(v || '0') || 0;
 
   function recalcFromPct(){
-    const OP = toNum(priceOrig.value), CP = toNum(priceNow.value), P = toNum(redPct.value);
-    if (OP > 0 && P >= 0) redVal.value = Math.round(OP * (P/100));
+    const OP = toNum(priceOrig?.value), P = toNum(redPct?.value);
+    if (OP > 0 && P >= 0 && redVal) redVal.value = Math.round(OP * (P/100));
   }
   function recalcFromVal(){
-    const OP = toNum(priceOrig.value), V = toNum(redVal.value);
-    if (OP > 0 && V >= 0) redPct.value = (V / OP * 100).toFixed(2);
+    const OP = toNum(priceOrig?.value), V = toNum(redVal?.value);
+    if (OP > 0 && V >= 0 && redPct) redPct.value = (V / OP * 100).toFixed(2);
   }
   function recalcBoth(){
-    // prefer computing % from value if value present; else compute value from %
-    if (redVal.value) recalcFromVal(); else recalcFromPct();
+    if (redVal?.value) recalcFromVal(); else recalcFromPct();
   }
 
   priceOrig?.addEventListener('input', recalcBoth);
   priceNow ?.addEventListener('input', recalcBoth);
   redPct   ?.addEventListener('input', recalcFromPct);
   redVal   ?.addEventListener('input', recalcFromVal);
-});
 
-
-document.addEventListener('DOMContentLoaded', () => {
-  // prevent Enter from submitting
+  // ---- Prevent Enter submit (wizard already handles submit) ----
   const form = document.getElementById('propertyForm');
-  form.addEventListener('keydown', (e) => {
+  form?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault();
   });
 
-  // POA toggle
-  const poa = document.getElementById('poa');
+  // ---- POA (basic price) toggle ----
+  const poa  = document.getElementById('poa');
   const price = document.getElementById('price');
-  poa.addEventListener('change', () => {
+
+  poa?.addEventListener('change', () => {
+    if (!price) return;
     price.disabled = poa.checked;
     if (poa.checked) price.value = '';
   });
 
-  // Pool description toggle
-  const pool = document.getElementById('pool');
+  // ---- Pool description toggle ----
+  const pool     = document.getElementById('pool');
   const poolWrap = document.getElementById('poolDescriptionWrapper');
   const poolDesc = document.getElementById('pool_description');
-  function togglePoolDesc(){
-    if (pool.value === 'Yes'){ poolWrap.style.display='block'; poolDesc.required=true; }
-    else { poolWrap.style.display='none'; poolDesc.required=false; poolDesc.value=''; }
-  }
-  pool.addEventListener('change', togglePoolDesc); togglePoolDesc();
 
-document.addEventListener('DOMContentLoaded', () => {
+  function togglePoolDesc(){
+    if (!pool || !poolWrap || !poolDesc) return;
+    if (pool.value === 'Yes'){
+      poolWrap.style.display = 'block';
+      poolDesc.required = true;
+    } else {
+      poolWrap.style.display = 'none';
+      poolDesc.required = false;
+      poolDesc.value = '';
+    }
+  }
+  pool?.addEventListener('change', togglePoolDesc);
+  togglePoolDesc();
+
+  // ---- Floor toggle (apartment/penthouse) ----
   const typeSel  = document.getElementById('property_type');
   const floorCol = document.getElementById('floorCol');
   const floorInp = document.getElementById('floor');
 
   function toggleFloor(){
+    if (!typeSel || !floorCol || !floorInp) return;
     const v = (typeSel.value || '').toLowerCase();
     const show = v === 'apartment' || v === 'penthouse';
     floorCol.style.display = show ? 'block' : 'none';
     floorInp.required = show;
     if (!show) floorInp.value = '';
   }
-  typeSel.addEventListener('change', toggleFloor);
-  toggleFloor(); // initialize on load
+  typeSel?.addEventListener('change', toggleFloor);
+  toggleFloor();
 });
 </script>
 

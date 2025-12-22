@@ -124,15 +124,19 @@ Route::middleware('auth')->group(function () {
 
     // Properties Routes
     Route::resource('properties', PropertiesController::class);
-    Route::get('/properties', [PropertiesController::class, 'index'])->name('properties.index');
+
+    // Optional: Pretty URL aliases (no duplicate names)
+    Route::get('/new-property', [PropertiesController::class, 'create'])->name('properties.new');
     Route::post('/new-property', [PropertiesController::class, 'store'])->name('properties.custom_store');
-    Route::get('/properties/{id}/edit', [PropertiesController::class, 'edit'])->name('properties.edit');
-    Route::get('/new-property', [PropertiesController::class, 'create'])->name('properties.create');
-    Route::get('/properties/{id}', [PropertiesController::class, 'show'])->name('properties.show');
+
+    // Upload endpoints
     Route::post('/upload-images', [GalleryController::class, 'upload'])->name('gallery.upload');
     Route::post('/upload-plan', [FloorplanController::class, 'upload'])->name('floorplan.upload');
-    Route::delete('/properties/{id}', [PropertiesController::class, 'destroy'])->name('properties.destroy');
-    Route::get('/properties/{id}/download-images', [PropertiesController::class, 'downloadImages'])->name('properties.download-images');
+
+    // Extra endpoint
+    Route::get('/properties/{property}/download-images', [PropertiesController::class, 'downloadImages'])
+        ->name('properties.download-images');
+
 
 
 
@@ -223,18 +227,29 @@ Route::middleware('auth')->group(function () {
     Route::get('/report/partials/leads', [ReportController::class, 'leads']);
     Route::get('/report/partials/leads', [ReportController::class, 'leads'])
         ->name('report.partials.leads');
-
     Route::get('/reports/{year}', [ReportController::class, 'showYear'])
     ->name('reports.year');
     Route::get('/report/partials/leads/{year}', [ReportController::class, 'showYearPartial']);
 
     Route::get('/reports/api/leads-trend', [ReportController::class, 'leadsTrend'])
     ->name('reports.api.leads-trend');
-
     Route::get('/reports/api/portal-comparison', [ReportController::class, 'portalComparison']);
-
     Route::get('/report/partials/data_comparison', [ReportController::class, 'dataComparisonPartial']);
 
+    Route::get('/report/partials/sales', [ReportController::class, 'sales'])->name('report.partials.sales');
+    Route::get('/report/partials/listings', [ReportController::class, 'listings'])->name('report.partials.listings');
+    Route::get('/report/partials/units', [ReportController::class, 'units'])->name('report.partials.units');
+    Route::get('/report/partials/clients', [ReportController::class, 'clients']);
+    Route::get('/report/partials/potential-buyers', [ReportController::class, 'potentialBuyers']);
+    Route::get('/report/partials/property-interest', [ReportController::class, 'propertyInterest']);
+    Route::get('/report/partials/developers', [ReportController::class, 'developers']);
+    Route::get('/report/partials/agents', [ReportController::class, 'agents']);
+    Route::get('/report/partials/deals', [ReportController::class, 'deals']);
+    Route::get('/report/partials/diary', [ReportController::class, 'diary']);
+    Route::get('/report/partials/banks', [ReportController::class, 'banks'])->name('report.partials.banks');
+    Route::get('/report/partials/vendors', [ReportController::class, 'vendors'])->name('report.partials.vendors');
+    Route::get('/report/partials/inbox', [ReportController::class, 'inbox'])->name('report.partials.inbox');
+    Route::get('/report/partials/users', [ReportController::class, 'users']);
 
 
 
@@ -308,7 +323,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/sections/{slug}', [SectionController::class, 'update'])->name('sections.update');
     });
 
-    Route::delete('/properties/{id}', [PropertiesController::class, 'destroy'])->name('properties.destroy');
     Route::get('/admin/properties/picker', [PropertiesController::class, 'picker'])
     ->name('properties.picker');
 
@@ -391,7 +405,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/new-property', function () {
         return view('forms.new-property'); // exactly this path
     });
-    Route::post('/new-property', [PropertiesController::class, 'store'])->name('properties.store');
+    Route::post('/new-property', [PropertiesController::class, 'store'])->name('properties.custom_store');
 
     Route::get('/locations/regions',    [LocationsController::class, 'regions']);
     Route::get('/locations/towns',      [LocationsController::class, 'towns']);

@@ -4,6 +4,10 @@
       <label class="mb-0 fw-bold">Photos</label>
       <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#galleryModal">
         Manage Photos
+        <div id="photosError" class="text-danger small mt-2 d-none">
+            Please add at least 1 photo before continuing.
+        </div>
+
       </button>
     </div>
 

@@ -1,94 +1,90 @@
 
 
 <style>
-    .dc-card { @apply bg-white rounded-lg shadow p-4 border border-gray-200; }
-    .dc-label { @apply block text-xs font-semibold text-gray-600 uppercase mb-1; }
-    .dc-select, .dc-checkbox {
-        @apply border border-gray-300 rounded px-3 py-2 text-sm;
-    }
+  /* Tailwind @apply DOES NOT run in-browser, so we use real CSS */
+  .dc-card{
+    background:#fff;border:1px solid #e5e7eb;border-radius:12px;
+    padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  .dc-label{
+    display:block;font-size:11px;font-weight:700;letter-spacing:.04em;
+    color:#4b5563;text-transform:uppercase;margin-bottom:6px;
+  }
+  .dc-select,.dc-checkbox{border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;}
 </style>
 
-<div class="p-4 bg-white rounded-lg border border-gray-200" id="dataComparisonRoot">
+<!-- IMPORTANT: this id is what your toggle JS expects -->
+<!-- <div id="comparisonContainer" class="p-4 bg-white rounded-lg border border-gray-200">
 
-    <button id="btnBackToLeads"
-            class="mb-5 text-blue-600 hover:underline flex items-center gap-2">
-        ← Back to Leads
-    </button>
 
-    <h2 class="text-xl font-bold mb-6">Data Comparison</h2>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <h2 class="text-xl font-bold mb-6">Data Comparison</h2>
 
-        {{-- Years selector --}}
-        <div class="dc-card">
-            <label class="dc-label">Years to Compare</label>
-            @foreach($reportYears as $yr)
-                <label class="flex items-center gap-2 mb-1">
-                    <input type="checkbox" class="dc-checkbox dc-year" value="{{ $yr }}">
-                    <span class="text-sm text-gray-700">{{ $yr }}</span>
-                </label>
-            @endforeach
-            <p class="text-xs text-gray-400 mt-1">You may choose 1–3 years.</p>
-        </div>
-
-        {{-- Metric selector --}}
-        <div class="dc-card">
-            <label class="dc-label">Metric</label>
-            <select id="dcMetric" class="dc-select w-full">
-                <option value="leads">Total Leads</option>
-                <option value="paphos">Paphos</option>
-                <option value="limassol">Limassol</option>
-                <option value="larnaca">Larnaca</option>
-                <option value="famagusta">Famagusta</option>
-                <option value="zoopla">Zoopla</option>
-                <option value="rightmove">Rightmove</option>
-                <option value="apits">APITS</option>
-                <option value="slv">SLV</option>
-                <option value="hos">HoS</option>
-                <option value="facebook">Facebook</option>
-            </select>
-        </div>
-
-        {{-- Compare button --}}
-        <div class="dc-card flex items-end">
-            <button id="btnRunComparison"
-                    class="bg-blue-600 text-white px-4 py-2 rounded w-full hover:bg-blue-700">
-                Run Comparison
-            </button>
-        </div>
-
-    </div>
-
-    {{-- ============================== --}}
-    {{-- GRAPH AREA --}}
-    {{-- ============================== --}}
-    <div class="dc-card mb-6">
-        <h3 class="text-md font-semibold mb-3">Comparison Chart</h3>
-        <canvas id="dcChart" height="140"></canvas>
-    </div>
-
-    {{-- ============================== --}}
-    {{-- YEAR-ON-YEAR TABLE --}}
-    {{-- ============================== --}}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
     <div class="dc-card">
-        <h3 class="text-md font-semibold mb-3">Year-on-Year Summary</h3>
-        <table class="w-full text-sm border-collapse">
-            <thead>
-            <tr class="bg-gray-50">
-                <th class="border p-2 text-left">Year</th>
-                <th class="border p-2 text-right">Total</th>
-                <th class="border p-2 text-right">Diff vs Previous</th>
-                <th class="border p-2 text-right">% Change</th>
-            </tr>
-            </thead>
-            <tbody id="dcSummaryTable"></tbody>
-        </table>
+      <label class="dc-label">Years to Compare</label>
+      @foreach($reportYears as $yr)
+        <label class="flex items-center gap-2 mb-1">
+          <input type="checkbox" class="dc-checkbox dc-year" value="{{ $yr }}">
+          <span class="text-sm text-gray-700">{{ $yr }}</span>
+        </label>
+      @endforeach
+      <p class="text-xs text-gray-400 mt-1">You may choose 1–3 years.</p>
     </div>
 
-</div>
+    <div class="dc-card">
+      <label class="dc-label">Metric</label>
+      <select id="dcMetric" class="dc-select w-full">
+        <option value="leads">Total Leads</option>
+        <option value="paphos">Paphos</option>
+        <option value="limassol">Limassol</option>
+        <option value="larnaca">Larnaca</option>
+        <option value="famagusta">Famagusta</option>
+        <option value="zoopla">Zoopla</option>
+        <option value="rightmove">Rightmove</option>
+        <option value="apits">APITS</option>
+        <option value="slv">SLV</option>
+        <option value="hos">HoS</option>
+        <option value="facebook">Facebook</option>
+      </select>
+    </div>
+
+    <div class="dc-card flex items-end">
+      <button id="btnRunComparison" class="bg-blue-600 text-white px-4 py-2 rounded w-full hover:bg-blue-700">
+        Run Comparison
+      </button>
+    </div>
+  </div>
+
+  <div class="dc-card mb-6">
+    <h3 class="text-md font-semibold mb-3">Comparison Chart</h3>
+    <canvas id="dcChart" height="140"></canvas>
+  </div>
+
+  <div class="dc-card">
+    <h3 class="text-md font-semibold mb-3">Year-on-Year Summary</h3>
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="bg-gray-50">
+          <th class="border p-2 text-left">Year</th>
+          <th class="border p-2 text-right">Total</th>
+          <th class="border p-2 text-right">Diff vs Previous</th>
+          <th class="border p-2 text-right">% Change</th>
+        </tr>
+      </thead>
+      <tbody id="dcSummaryTable"></tbody>
+    </table>
+  </div>
+
+</div> -->
+
 
     <div id="dataComparisonSection" class="p-4 bg-white rounded-lg border border-gray-200 mt-8">
-        <h2 class="text-lg font-semibold mb-4">Data Comparison</h2>
+        <!-- <h2 class="text-lg font-semibold mb-4">Data Comparison</h2> -->
+
+         <button id="btnBackToLeads" class="mb-5 text-blue-600 hover:underline flex items-center gap-2">
+            ← Back to Leads
+        </button>
 
         {{-- TOP: multi-year leads line chart (2022–2024) --}}
         <div class="bg-gray-100 rounded-lg p-4 mb-6">

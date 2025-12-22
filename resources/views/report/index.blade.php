@@ -34,12 +34,11 @@
                     <a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="leads">Leads</a>
                 </li>
 
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="notes">Sales</a></li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="total_value">Listings</a></li>
-            </ul>
+                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="sales">Sales</a></li>
+                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="listings">Listings</a></li>
+                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="units">Units</a></li>
+                <!-- <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="valuations">Valuations</a></li>
 
-            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="properties">Properties</a></li>
-            <ul class="pl-4 space-y-1">
                 <li>
                     <a href="#"
                         class="text-gray-600 hover:text-blue-600 report-link"
@@ -49,19 +48,23 @@
                 </li>
 
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="notes">Notes</a></li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="total_value">Total Value</a></li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="valuations">Valuations</a></li>
-                <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="units">Units</a></li>
+                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="total_value">Total Value</a></li> -->
+
+
             </ul>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="clients">Clients</a></li>
-            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="leads">Labels/Lead sources</a></li>
-            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="buyers">Potential buyers</a></li>
-            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="interest">Property interest</a></li>
+            <!-- <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="leads">Labels/Lead sources</a></li> -->
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="potential-buyers">Potential buyers</a></li>
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="property-interest">Property interest</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="developers">Developers</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="agents">Agents</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="deals">Deals</a></li>
-            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="open_deals">Open Deals Total Value</a></li>
+            <!-- <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="open_deals">Open Deals Total Value</a></li> -->
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="diary">Diary</a></li>
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="banks">Banks</a></li>
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="vendors">Vendors</a></li>
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="inbox">Inbox</a></li>
+            <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="users">User</a></li>
         </ul>
     </aside>
 

@@ -13,22 +13,26 @@
 
     <!-- Preview -->
     <div id="floorGalleryPreview"
-         class="d-flex border rounded overflow-hidden"
-         style="height: 250px;">
+     class="d-flex border rounded overflow-hidden"
+     style="height: 250px;">
 
-      <div class="flex-grow-1 position-relative bg-light" id="floorFeaturedPhotoPreview">
+    <div class="flex-grow-1 position-relative bg-light" id="floorFeaturedPhotoPreview">
         <img src="" id="floorFeaturedPhoto"
-             class="w-100 h-100 object-fit-cover d-none"
-             alt="Featured floor plan">
+            class="w-100 h-100 object-fit-cover d-none"
+            alt="Featured floor plan">
         <span class="position-absolute bottom-0 end-0 m-2 bg-dark text-white small px-2 py-1 rounded"
-              id="floorPhotoCount">0</span>
-      </div>
-
-      <div class="d-flex flex-column gap-1 p-1"
-           style="width: 150px;"
-           id="floorSideThumbnails"></div>
+            id="floorPhotoCount">0</span>
     </div>
-  </div>
+
+    <div class="d-flex flex-column gap-1 p-1"
+        style="width: 150px;"
+        id="floorSideThumbnails"></div>
+    </div>
+
+    <div id="floorPlansError" class="text-danger small mt-2 d-none">
+    Please upload at least 1 floor plan.
+    </div>
+
 </div>
 
 <!-- Floor Plans Modal -->
@@ -87,21 +91,25 @@
 
     <!-- Preview -->
     <div id="deedGalleryPreview"
-         class="d-flex border rounded overflow-hidden"
-         style="height: 250px;">
+        class="d-flex border rounded overflow-hidden"
+        style="height: 250px;">
 
-      <div class="flex-grow-1 position-relative bg-light" id="deedFeaturedPhotoPreview">
-        <img src="" id="deedFeaturedPhoto"
-             class="w-100 h-100 object-fit-cover d-none"
-             alt="Featured deed photo">
-        <span class="position-absolute bottom-0 end-0 m-2 bg-dark text-white small px-2 py-1 rounded"
-              id="deedPhotoCount">0</span>
-      </div>
+        <div class="flex-grow-1 position-relative bg-light" id="deedFeaturedPhotoPreview">
+            <img src="" id="deedFeaturedPhoto"
+                class="w-100 h-100 object-fit-cover d-none"
+                alt="Featured deed photo">
+            <span class="position-absolute bottom-0 end-0 m-2 bg-dark text-white small px-2 py-1 rounded"
+                id="deedPhotoCount">0</span>
+        </div>
 
-      <div class="d-flex flex-column gap-1 p-1"
-           style="width: 150px;"
-           id="deedSideThumbnails"></div>
-    </div>
+        <div class="d-flex flex-column gap-1 p-1"
+            style="width: 150px;"
+            id="deedSideThumbnails"></div>
+        </div>
+
+        <div id="titleDeedError" class="text-danger small mt-2 d-none">
+        Title Deed photos are required.
+        </div>
   </div>
 </div>
 

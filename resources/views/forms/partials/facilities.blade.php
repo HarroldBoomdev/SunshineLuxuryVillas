@@ -17,15 +17,9 @@
     </div>
 
     <div class="mb-3">
-        <button type="button" class="btn btn-warning">Save Changes</button>
-    </div>
-
-    <div class="mb-3">
         <label>Virtual Tour Link:</label>
         <input type="text" name="virtual_tour" class="form-control">
     </div>
-
-    <button type="button" class="btn btn-warning">Save Virtual Tour Link</button>
 
 </div>
 
@@ -37,7 +31,7 @@
 
     <div class="mb-3">
         <label>Upload File:</label>
-        <input type="file" name="document" class="form-control">
+        <input type="file" name="documents[]" class="form-control" multiple>
     </div>
 
     <button type="button" class="btn btn-warning">Upload</button>

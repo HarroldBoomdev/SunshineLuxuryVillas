@@ -12,25 +12,28 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Country</label>
-                <select class="form-select" name="country" id="country">
+                <select class="form-select" name="country" id="country" required>
                     <option value="">Select…</option>
                     <option value="Cyprus">Cyprus</option>
                     <option value="Greece">Greece</option>
                 </select>
+                <div class="invalid-feedback">Country is required.</div>
             </div>
 
             <div class="col-md-3">
                 <label class="form-label">Region</label>
-                <select class="form-select" name="region" id="region">
+                <select class="form-select" name="region" id="region" required>
                     <option value="">All Regions</option>
                 </select>
+                <div class="invalid-feedback">Region is required.</div>
             </div>
 
             <div class="col-md-3">
                 <label class="form-label">Town / City</label>
-                <select class="form-select" name="town" id="town">
+                <select class="form-select" name="town" id="town" required>
                     <option value="">All Towns</option>
                 </select>
+                <div class="invalid-feedback">Town / City is required.</div>
             </div>
 
             <div class="col-md-3">
@@ -72,16 +75,22 @@
             <label for="latitude">Latitude</label>
             <input type="text" id="latitude" name="latitude" class="form-control" readonly>
         </div>
+        <div class="invalid-feedback">Please set a map location.</div>
+
 
         <div class="col-md-6">
             <label for="longitude">Longitude</label>
             <input type="text" id="longitude" name="longitude" class="form-control" readonly>
         </div>
+        <div class="invalid-feedback">Please set a map location.</div>
+
 
         <div class="col-md-12">
             <label for="map_address">Map Address</label>
             <input type="text" id="map_address" name="map_address" class="form-control" readonly>
         </div>
+        <div class="invalid-feedback">Please set a map location.</div>
+
 
         <div class="col-md-12">
             <label for="accuracy">Accuracy</label>

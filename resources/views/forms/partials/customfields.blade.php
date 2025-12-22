@@ -62,7 +62,7 @@ use Illuminate\Support\Str;
     ],
 
     'Pool Description' => [
-      ['label'=>'Pool Description', 'name'=>'pool_description', 'type'=>'text', 'placeholder'=>'e.g. Infinity, Heated, Shared...'],
+      ['label'=>'Pool Description', 'name'=>'cf_pool_description', 'type'=>'text', 'placeholder'=>'e.g. Infinity, Heated, Shared...'],
     ],
 
     'Pool' => [
@@ -286,8 +286,10 @@ use Illuminate\Support\Str;
                               <span class="text-muted small">{{ $it['suffix'] }}</span>
                             @endif
                           @endif
-                          <input class="form-check-input" type="checkbox"
-                                 name="{{ $name }}" value="1" @checked($checked)>
+                          <input type="hidden" name="{{ $name }}" value="0">
+                            <input class="form-check-input" type="checkbox"
+                                name="{{ $name }}" value="1" @checked($checked)>
+
                         </span>
                       </label>
                     </div>

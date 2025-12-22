@@ -55,34 +55,38 @@
         {{-- KPI cards --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center mb-8">
             <div class="bg-green-500 text-white py-4 rounded-lg shadow-md">
-            <h3 class="text-lg font-bold">Total Sales (This Year)</h3>
-            <p class="text-2xl font-semibold">{{ $salesThisYear }}</p>
+                <h3 class="text-lg font-bold">SLV Site</h3>
+                <p class="text-2xl font-semibold">{{ number_format((int)($kpiSlv ?? 0)) }}</p>
             </div>
 
             <div class="bg-yellow-500 text-white py-4 rounded-lg shadow-md">
-            <h3 class="text-lg font-bold">Total Leads ({{ $selectedYear }})</h3>
-            <p class="text-2xl font-semibold">{{ $totalLeadsSelectedYear }}</p>
-            <div class="text-xs mt-1 opacity-90">avg {{ $allLeadsAvg }} / month</div>
+                <h3 class="text-lg font-bold">APITS</h3>
+                <p class="text-2xl font-semibold">{{ number_format((int)($kpiApits ?? 0)) }}</p>
             </div>
 
             <div class="bg-blue-500 text-white py-4 rounded-lg shadow-md">
-            <h3 class="text-lg font-bold">Quarter Target</h3>
-            <p class="text-2xl font-semibold">{{ $salesThisQuarter }}/{{ $quarterTarget }}</p>
+                <h3 class="text-lg font-bold">Zoopla</h3>
+                <p class="text-2xl font-semibold">{{ number_format((int)($kpiZoopla ?? 0)) }}</p>
             </div>
 
             <div class="bg-pink-500 text-white py-4 rounded-lg shadow-md">
-            <h3 class="text-lg font-bold">Year Target Progress</h3>
-            <p class="text-2xl font-semibold">{{ number_format(($salesThisYear / max(1, $yearlyTarget)) * 100, 1) }}%</p>
+                <h3 class="text-lg font-bold">RightMove</h3>
+                <p class="text-2xl font-semibold">{{ number_format((int)($kpiRightmove ?? 0)) }}</p>
             </div>
         </div>
 
-        {{-- Progress bar --}}
+
+        {{-- Total Leads --}}
         <div class="mb-6">
-            <h4 class="text-md font-semibold mb-1">Yearly Sales Target</h4>
+            <h4 class="text-md font-semibold mb-1">Total Leads</h4>
             <div class="w-full bg-gray-300 rounded-full h-4">
-            <div class="bg-green-600 h-4 rounded-full" style="width: {{ min(100, ($salesThisYear / max(1,$yearlyTarget)) * 100) }}%"></div>
+                <div class="bg-green-600 h-4 rounded-full" style="width: 100%"></div>
+            </div>
+            <div class="mt-2 text-sm text-gray-700 font-semibold">
+                {{ number_format((int)($totalLeadsKpi ?? 0)) }}
             </div>
         </div>
+
 
         {{-- Monthly Leads chart (existing interactive block) --}}
         <div class="p-4 bg-gray-100 rounded-lg shadow-md">
@@ -184,20 +188,18 @@
 </div>
 
 
-
 <script>
 (function () {
   // ======================
   // A) Leads <-> Data Comparison toggle
   // ======================
-  const leadsContainer       = document.getElementById('leadsContainer');
-  const comparisonContainer  = document.getElementById('comparisonContainer');
-  const btnDataComparison    = document.getElementById('btnDataComparison');
-  const backToLeads          = document.getElementById('backToLeads');
+  const leadsContainer      = document.getElementById('leadsContainer');
+  const comparisonContainer = document.getElementById('comparisonContainer');
+  const btnDataComparison   = document.getElementById('btnDataComparison');
+  const backToLeads         = document.getElementById('backToLeads'); // must exist inside data-comparison partial
 
   if (btnDataComparison && leadsContainer && comparisonContainer) {
     btnDataComparison.addEventListener('click', () => {
-      // show Data Comparison, hide Leads
       leadsContainer.classList.add('hidden');
       comparisonContainer.classList.remove('hidden');
     });
@@ -205,7 +207,6 @@
 
   if (backToLeads && leadsContainer && comparisonContainer) {
     backToLeads.addEventListener('click', () => {
-      // show Leads, hide Data Comparison
       comparisonContainer.classList.add('hidden');
       leadsContainer.classList.remove('hidden');
     });
@@ -216,173 +217,156 @@
   // ======================
   if (typeof Chart === 'undefined') {
     console.error('Chart.js is not loaded on the leads partial.');
-    return; // skip chart setup, but toggles above still work
+    return;
   }
 
   // ======================
   // 1) Monthly Leads Charts
   // ======================
   const leadStats = @json($leadStats ?? []);
-  ...
-})();
-
 
   console.log('leadStats from Blade:', leadStats);
 
   if (!Array.isArray(leadStats) || leadStats.length === 0) {
     console.warn('No leadStats data – skipping chart initialisation.');
-    return;
-  }
+    // still allow year dropdown / toggles to work
+  } else {
+    const monthsFull = leadStats.map(i => i.month);
+    const leadsFull  = leadStats.map(i => Number(i.total) || 0);
 
-  const monthsFull = leadStats.map(i => i.month);
-  const leadsFull  = leadStats.map(i => Number(i.total) || 0);
+    const idxByMonth = monthsFull.reduce((acc, m, i) => {
+      acc[m] = i;
+      return acc;
+    }, {});
 
-  const idxByMonth = monthsFull.reduce((acc, m, i) => {
-    acc[m] = i;
-    return acc;
-  }, {});
+    const sliceByMonths = (months) => {
+      const labels = months.filter(m => m in idxByMonth);
+      const data   = labels.map(m => leadsFull[idxByMonth[m]]);
+      return { labels, data };
+    };
 
-  const sliceByMonths = (months) => {
-    const labels = months.filter(m => m in idxByMonth);
-    const data   = labels.map(m => leadsFull[idxByMonth[m]]);
-    return { labels, data };
-  };
+    const Q1M = ['January','February','March'];
+    const Q2M = ['April','May','June'];
+    const Q3M = ['July','August','September'];
+    const Q4M = ['October','November','December'];
 
-  const Q1M = ['January','February','March'];
-  const Q2M = ['April','May','June'];
-  const Q3M = ['July','August','September'];
-  const Q4M = ['October','November','December'];
+    const SL_ALL = { labels: monthsFull, data: leadsFull };
+    const SL_Q1  = sliceByMonths(Q1M);
+    const SL_Q2  = sliceByMonths(Q2M);
+    const SL_Q3  = sliceByMonths(Q3M);
+    const SL_Q4  = sliceByMonths(Q4M);
 
-  const SL_ALL = { labels: monthsFull, data: leadsFull };
-  const SL_Q1  = sliceByMonths(Q1M);
-  const SL_Q2  = sliceByMonths(Q2M);
-  const SL_Q3  = sliceByMonths(Q3M);
-  const SL_Q4  = sliceByMonths(Q4M);
+    let leadsBar = null;
+    const leadsCompareCache = {};
 
-  let leadsBar = null;
+    function makeBar(canvasId, labels, data) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) {
+        console.warn('Bar canvas not found:', canvasId);
+        return null;
+      }
+      const ctx = canvas.getContext('2d');
 
-  function makeBar(canvasId, labels, data) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) {
-      console.warn('Bar canvas not found:', canvasId);
-      return null;
-    }
-    const ctx = canvas.getContext('2d');
-
-    return new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Leads',
-          data,
-          backgroundColor: '#34d399'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { precision: 0 }
-          },
-          x: {
-            grid: { display: false }
-          }
+      return new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Leads',
+            data
+          }]
         },
-        plugins: {
-          legend: { display: true, position: 'top' }
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: true, position: 'top' }
+          }
         }
-      }
-    });
-  }
-
-  function renderLeads(labels, data) {
-    if (leadsBar) {
-      leadsBar.destroy();
+      });
     }
-    leadsBar = makeBar('leadsBar', labels, data);
-  }
 
-  // Initial render (All months)
-  renderLeads(SL_ALL.labels, SL_ALL.data);
-
-  const leadsControls = document.getElementById('leadsControls');
-
-  function showSingle(view) {
-    const grid   = document.getElementById('leadsCompareGrid');
-    const canvas = document.getElementById('leadsBar');
-    const title  = document.getElementById('leadsTitle');
-
-    if (!grid || !canvas || !title) return;
-
-    grid.style.display   = 'none';
-    canvas.style.display = 'block';
-
-    switch (view) {
-      case 'q1':
-        renderLeads(SL_Q1.labels, SL_Q1.data);
-        title.textContent = 'Leads January – March';
-        break;
-      case 'q2':
-        renderLeads(SL_Q2.labels, SL_Q2.data);
-        title.textContent = 'Leads April – June';
-        break;
-      case 'q3':
-        renderLeads(SL_Q3.labels, SL_Q3.data);
-        title.textContent = 'Leads July – September';
-        break;
-      case 'q4':
-        renderLeads(SL_Q4.labels, SL_Q4.data);
-        title.textContent = 'Leads October – December';
-        break;
-      default:
-        renderLeads(SL_ALL.labels, SL_ALL.data);
-        title.textContent = 'Leads January – December';
+    function renderLeads(labels, data) {
+      if (leadsBar) leadsBar.destroy();
+      leadsBar = makeBar('leadsBar', labels, data);
     }
-  }
 
-  const leadsCompareCache = {};
+    function showSingle(view) {
+      const grid   = document.getElementById('leadsCompareGrid');
+      const canvas = document.getElementById('leadsBar');
+      const title  = document.getElementById('leadsTitle');
+      if (!grid || !canvas || !title) return;
 
-  function renderLeadsCompare() {
-    const grid   = document.getElementById('leadsCompareGrid');
-    const canvas = document.getElementById('leadsBar');
-    const title  = document.getElementById('leadsTitle');
+      grid.style.display   = 'none';
+      canvas.style.display = 'block';
 
-    if (!grid || !canvas || !title) return;
-
-    canvas.style.display = 'none';
-    grid.style.display   = 'grid';
-    title.textContent    = 'Leads by Quarter';
-
-    [
-      ['barQ1', SL_Q1],
-      ['barQ2', SL_Q2],
-      ['barQ3', SL_Q3],
-      ['barQ4', SL_Q4],
-    ].forEach(([id, sl]) => {
-      if (!leadsCompareCache[id]) {
-        leadsCompareCache[id] = makeBar(id, sl.labels, sl.data);
+      switch (view) {
+        case 'q1':
+          renderLeads(SL_Q1.labels, SL_Q1.data);
+          title.textContent = 'Leads January – March';
+          break;
+        case 'q2':
+          renderLeads(SL_Q2.labels, SL_Q2.data);
+          title.textContent = 'Leads April – June';
+          break;
+        case 'q3':
+          renderLeads(SL_Q3.labels, SL_Q3.data);
+          title.textContent = 'Leads July – September';
+          break;
+        case 'q4':
+          renderLeads(SL_Q4.labels, SL_Q4.data);
+          title.textContent = 'Leads October – December';
+          break;
+        default:
+          renderLeads(SL_ALL.labels, SL_ALL.data);
+          title.textContent = 'Leads January – December';
       }
-    });
-  }
+    }
 
-  if (leadsControls) {
-    leadsControls.addEventListener('click', (e) => {
-      const btn = e.target.closest('.qbtn');
-      if (!btn) return;
+    function renderLeadsCompare() {
+      const grid   = document.getElementById('leadsCompareGrid');
+      const canvas = document.getElementById('leadsBar');
+      const title  = document.getElementById('leadsTitle');
+      if (!grid || !canvas || !title) return;
 
-      leadsControls.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      canvas.style.display = 'none';
+      grid.style.display   = 'grid';
+      title.textContent    = 'Leads by Quarter';
 
-      const v = btn.dataset.view;
-      if (v === 'compare') {
-        renderLeadsCompare();
-      } else {
-        showSingle(v);
-      }
-    });
+      [
+        ['barQ1', SL_Q1],
+        ['barQ2', SL_Q2],
+        ['barQ3', SL_Q3],
+        ['barQ4', SL_Q4],
+      ].forEach(([id, sl]) => {
+        if (!leadsCompareCache[id]) {
+          leadsCompareCache[id] = makeBar(id, sl.labels, sl.data);
+        }
+      });
+    }
+
+    // Initial render
+    renderLeads(SL_ALL.labels, SL_ALL.data);
+
+    // Quarter buttons
+    const leadsControls = document.getElementById('leadsControls');
+    if (leadsControls) {
+      leadsControls.addEventListener('click', (e) => {
+        const btn = e.target.closest('.qbtn');
+        if (!btn) return;
+
+        leadsControls.querySelectorAll('.qbtn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const v = btn.dataset.view;
+        if (v === 'compare') renderLeadsCompare();
+        else showSingle(v);
+      });
+    }
   }
 
   // ======================
@@ -391,13 +375,18 @@
   const yearSelect = document.getElementById('reportYear');
   if (yearSelect) {
     yearSelect.addEventListener('change', () => {
-      const y         = yearSelect.value;
+      const y = yearSelect.value;
+
+      // IMPORTANT: this element MUST exist on the main report page (not inside the partial)
       const container = document.getElementById('report-content');
-      if (!container) return;
+      if (!container) {
+        console.error('Missing #report-content wrapper. Add <div id="report-content"></div> around your partial output.');
+        return;
+      }
 
       const url = `/report/partials/leads?year=${encodeURIComponent(y)}`;
 
-      // Update CSV/PDF links
+      // Update CSV/PDF links (these IDs must match your buttons in the page header)
       const csvBtn = document.getElementById('downloadCsvBtn');
       const pdfBtn = document.getElementById('downloadPdfBtn');
       if (csvBtn) csvBtn.href = `/reports/export/csv/leads?year=${encodeURIComponent(y)}`;
@@ -410,7 +399,7 @@
           wrap.innerHTML = html;
           container.replaceChildren(...wrap.childNodes);
 
-          // re-run any scripts inside the new partial
+          // Re-run scripts inside the reloaded partial
           container.querySelectorAll('script').forEach(old => {
             const s = document.createElement('script');
             [...old.attributes].forEach(a => s.setAttribute(a.name, a.value));
@@ -432,7 +421,7 @@
   // 3) Pie charts (Location & Source)
   // ======================
   const leadsByLocation = @json($leadsByLocation ?? []);
-  const leadsBySource   = @json($leadsBySource   ?? []);
+  const leadsBySource   = @json($leadsBySource ?? []);
 
   function randomPastelColor() {
     const r = 150 + Math.floor(Math.random() * 105);
@@ -455,15 +444,13 @@
         labels,
         datasets: [{
           data,
-          backgroundColor: labels.map(() => randomPastelColor()),
+          backgroundColor: labels.map(() => randomPastelColor())
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        plugins: {
-          legend: { position: 'bottom' },
-        }
+        plugins: { legend: { position: 'bottom' } }
       }
     });
   }
@@ -476,9 +463,7 @@
 
   makePie('pieLocation', locLabels, locData);
   makePie('pieSource',   srcLabels, srcData);
+
 })();
-
-
-
-
 </script>
+
