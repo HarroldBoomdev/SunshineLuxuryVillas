@@ -108,6 +108,142 @@ class ReportController extends Controller
         return $pdf->download('report_' . now()->format('Y-m-d_H-i-s') . '.pdf');
     }
 
+    public function properties(Request $request)
+    {
+        // Years in DB for dropdown (based on created_at)
+        $yearsFromDb = DB::table('properties')
+            ->selectRaw('YEAR(created_at) as year')
+            ->whereNotNull('created_at')
+            ->distinct()
+            ->orderBy('year')
+            ->pluck('year')
+            ->filter()
+            ->toArray();
+
+        $startYear   = 2022;
+        $maxYearInDb = !empty($yearsFromDb) ? max($yearsFromDb) : $startYear;
+        $endYear     = max($maxYearInDb, now()->year);
+        $reportYears = range($startYear, $endYear);
+
+        $defaultYear  = !empty($reportYears) ? max($reportYears) : now()->year;
+        $year         = (int) ($request->input('year') ?: $defaultYear);
+        $selectedYear = $year;
+
+        // Fixed month order
+        $MONTHS = [
+            'January','February','March','April','May','June',
+            'July','August','September','October','November','December'
+        ];
+
+        // Monthly totals for selected year
+        $propertyStatsRaw = DB::table('properties')
+            ->selectRaw('MONTH(created_at) as month_num, COUNT(*) as total')
+            ->whereYear('created_at', $year)
+            ->groupBy('month_num')
+            ->get()
+            ->keyBy('month_num');
+
+        $propertyStats = collect($MONTHS)->map(function ($m, $idx) use ($propertyStatsRaw) {
+            $monthNum = $idx + 1; // 1..12
+            $row = $propertyStatsRaw->get($monthNum);
+            return [
+                'month' => $m,
+                'total' => $row ? (int) $row->total : 0
+            ];
+        })->values()->all();
+
+        // ✅ KPIs
+        $totalListings = (int) DB::table('properties')->count();
+
+        $avgValue = (float) DB::table('properties')
+            ->whereNotNull('price')
+            ->where('price', '>', 0)
+            ->avg('price');
+
+        $listedThisMonth = (int) DB::table('properties')
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
+            ->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ✅ DUMMY DATA (for now) — to satisfy report requirements
+        |--------------------------------------------------------------------------
+        | You can build the UI now, then we replace these with real queries later.
+        */
+
+        // 1) Listings per district
+        $listingsPerDistrict = [
+            'Paphos'    => 420,
+            'Limassol'  => 310,
+            'Larnaca'   => 220,
+            'Famagusta' => 116,
+        ];
+
+        // 2) Avg price per district
+        $avgPricePerDistrict = [
+            'Paphos'    => 285000,
+            'Limassol'  => 410000,
+            'Larnaca'   => 240000,
+            'Famagusta' => 198000,
+        ];
+
+        // 3) Listings per property type
+        $listingsPerType = [
+            'Villa'      => 380,
+            'Apartment'  => 520,
+            'Townhouse'  => 110,
+            'Plot'       => 56,
+        ];
+
+        // 4) Property type × district (matrix)
+        $typeByDistrict = [
+            'Paphos' => [
+                'Villa'     => 180,
+                'Apartment' => 190,
+                'Townhouse' => 35,
+                'Plot'      => 15,
+            ],
+            'Limassol' => [
+                'Villa'     => 120,
+                'Apartment' => 160,
+                'Townhouse' => 20,
+                'Plot'      => 10,
+            ],
+            'Larnaca' => [
+                'Villa'     => 60,
+                'Apartment' => 130,
+                'Townhouse' => 40,
+                'Plot'      =>  -10 + 20, // (keeps it obvious "dummy"; replace later)
+            ],
+            'Famagusta' => [
+                'Villa'     => 20,
+                'Apartment' => 40,
+                'Townhouse' => 15,
+                'Plot'      => 41,
+            ],
+        ];
+
+        // 5) Listings per portal
+        $listingsPerPortal = [
+            'SLV'        => 520,
+            'Kyero'      => 310,
+            'Ultrait'    => 180,
+            'Zoopla'     => 56,
+            'Rightmove'  => 0,
+        ];
+
+        return view('report.partials.properties', compact(
+            'reportYears','selectedYear',
+            'propertyStats',
+            'totalListings','avgValue','listedThisMonth',
+            'listingsPerDistrict','avgPricePerDistrict',
+            'listingsPerType','typeByDistrict',
+            'listingsPerPortal'
+        ));
+    }
+
+
     /**
      * LEADS DASHBOARD (partial loaded via AJAX)
      */

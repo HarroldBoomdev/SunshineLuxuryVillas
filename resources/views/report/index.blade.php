@@ -37,29 +37,15 @@
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="sales">Sales</a></li>
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="listings">Listings</a></li>
                 <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="units">Units</a></li>
-                <!-- <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="valuations">Valuations</a></li>
-
-                <li>
-                    <a href="#"
-                        class="text-gray-600 hover:text-blue-600 report-link"
-                        data-type="historical">
-                        Historical Listings
-                    </a>
-                </li>
-
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="notes">Notes</a></li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 report-link" data-type="total_value">Total Value</a></li> -->
 
 
             </ul>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="clients">Clients</a></li>
-            <!-- <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="leads">Labels/Lead sources</a></li> -->
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="potential-buyers">Potential buyers</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="property-interest">Property interest</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="developers">Developers</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="agents">Agents</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="deals">Deals</a></li>
-            <!-- <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="open_deals">Open Deals Total Value</a></li> -->
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="diary">Diary</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="banks">Banks</a></li>
             <li><a href="#" class="block text-gray-700 hover:text-blue-600 report-link" data-type="vendors">Vendors</a></li>
@@ -210,28 +196,7 @@
           s.textContent = old.textContent;
           old.replaceWith(s);
         });
-
-        // Init any report-specific JS
-        if (type === 'properties') {
-          const ctx = document.getElementById('chart-properties')?.getContext('2d');
-          if (ctx) {
-            new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr'],
-                datasets: [{
-                  label: 'Listings',
-                  data: [120, 150, 180, 210],
-                  backgroundColor: 'rgba(59,130,246,0.7)'
-                }]
-              },
-              options: {
-                plugins: { legend: { display: false } },
-                scales: { x: { ticks: { color: '#333' } }, y: { ticks: { color: '#333' } } }
-              }
-            });
-          }
-        }
+        
 
         if (type === 'leads') {
           // Wire up the year dropdown whenever the Leads report is loaded

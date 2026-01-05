@@ -221,9 +221,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/report/section/{section}', [ReportController::class, 'loadSection']);
 
     Route::get('/report', [ReportController::class, 'index'])->name('report.index');
-    Route::get('/report/partials/leads', [ReportController::class, 'leads'])->name('report.partials.leads');
 
     // simple partial endpoints the JS will fetch
+    Route::get('/report/partials/properties', [ReportController::class, 'properties'])
+    ->name('report.partials.properties');
+
     Route::get('/report/partials/leads', [ReportController::class, 'leads']);
     Route::get('/report/partials/leads', [ReportController::class, 'leads'])
         ->name('report.partials.leads');
