@@ -118,6 +118,12 @@ class InboxController extends Controller
      */
     protected function sendNotificationEmail(FormSubmission $submission): void
     {
+        // ✅ DEBUG: prove this method is reached
+        Log::info('sendNotificationEmail hit', [
+            'id'       => $submission->id,
+            'form_key' => $submission->form_key,
+        ]);
+
         $routes = config('form_inbox', []);
 
         if (empty($routes) || !is_array($routes)) {
@@ -125,7 +131,7 @@ class InboxController extends Controller
             return;
         }
 
-        $key    = (string) $submission->form_key; // e.g. investor_club
+        $key    = (string) $submission->form_key; // e.g. sell_with_us
         $route  = $routes[$key] ?? ($routes['_default'] ?? null);
         $always = $routes['_always'] ?? [];
 
@@ -134,20 +140,23 @@ class InboxController extends Controller
             return;
         }
 
+        // ✅ Build recipients
         $to  = array_values(array_unique($route['to']  ?? []));
-        $cc  = array_values(array_unique($route['cc'] ?? []));
+        $cc  = array_values(array_unique($route['cc']  ?? []));
+        // ✅ _always -> BCC (best for "always notify")
         $bcc = array_values(array_unique(array_merge($route['bcc'] ?? [], $always)));
 
-        // Remove empties
-        $to  = array_values(array_filter($to));
-        $cc  = array_values(array_filter($cc));
-        $bcc = array_values(array_filter($bcc));
+        // Remove empties & non-strings
+        $to  = array_values(array_filter($to,  fn ($v) => is_string($v) && trim($v) !== ''));
+        $cc  = array_values(array_filter($cc,  fn ($v) => is_string($v) && trim($v) !== ''));
+        $bcc = array_values(array_filter($bcc, fn ($v) => is_string($v) && trim($v) !== ''));
 
         if (empty($to) && empty($cc) && empty($bcc)) {
             Log::warning('Inbox notification: no recipients for form_key', ['form_key' => $key]);
             return;
         }
 
+        // ✅ Extract message + urls
         $payload  = $submission->payload ?? [];
         $msg      = $payload['message'] ?? null;
         $pageUrl  = $payload['page_url'] ?? ($payload['url'] ?? null);
@@ -155,12 +164,12 @@ class InboxController extends Controller
 
         $isSell = ($submission->form_key === 'sell_with_us');
 
-        // Subject: make Sell With Us easier to spot
+        // ✅ Subject
         $subject = $isSell
             ? '[SLV] Sell With Us enquiry — ' . ($submission->name ?: 'Website visitor')
-            : 'New ' . $submission->type . ' enquiry from ' . ($submission->name ?: 'Website visitor');
+            : '[SLV] New ' . ($submission->type ?: $submission->form_key) . ' enquiry — ' . ($submission->name ?: 'Website visitor');
 
-        // Build rows for a clean “scanable” table
+        // ✅ Common rows (table)
         $rows = [
             'Name'               => $this->e($submission->name ?? '—'),
             'Email'              => $this->e($submission->email ?? '—'),
@@ -171,14 +180,16 @@ class InboxController extends Controller
         ];
 
         if ($pageUrl) {
-            $rows['Page URL'] = '<a href="'.$this->e($pageUrl).'" target="_blank">'.$this->e($pageUrl).'</a>';
+            $safeUrl = $this->e($pageUrl);
+            $rows['Page URL'] = '<a href="'.$safeUrl.'" target="_blank" rel="noreferrer noopener">'.$safeUrl.'</a>';
         }
         if ($referrer) {
             $rows['Referrer'] = $this->e($referrer);
         }
 
-        // Body: use the “card” layout ONLY for Sell With Us (A)
+        // ✅ Body HTML
         if ($isSell) {
+            // A) Sell With Us — polished “card” layout
             $body  = '<div style="font-weight:800;font-size:18px;margin-bottom:2px;">New Sell With Us enquiry</div>';
             $body .= '<div style="color:#6b7280;font-size:13px;margin-bottom:10px;">A property owner submitted a selling enquiry via the website.</div>';
 
@@ -202,23 +213,21 @@ class InboxController extends Controller
 
             $html = $this->mailWrap('Sell With Us', $body);
         } else {
-            // Keep other forms simple/unchanged (stable)
+            // B) Other forms — stable/simple (keep working)
             $html  = '<p>You have a new enquiry from the website.</p>';
-
             $html .= '<table cellpadding="6" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,sans-serif;">';
+
             $html .= '<tr><td style="font-weight:bold;">Name</td><td>'  . e($submission->name ?? '—')  . '</td></tr>';
             $html .= '<tr><td style="font-weight:bold;">Email</td><td>' . e($submission->email ?? '—') . '</td></tr>';
             $html .= '<tr><td style="font-weight:bold;">Phone</td><td>' . e($submission->phone ?? '—') . '</td></tr>';
-            $html .= '<tr><td style="font-weight:bold;">Type</td><td>'  . e($submission->type) . ' (' . e($submission->form_key) . ')' . '</td></tr>';
+            $html .= '<tr><td style="font-weight:bold;">Type</td><td>'  . e($submission->type ?? '—') . ' (' . e($submission->form_key) . ')' . '</td></tr>';
 
             if (!empty($submission->reference)) {
                 $html .= '<tr><td style="font-weight:bold;">Property Ref</td><td>' . e($submission->reference) . '</td></tr>';
             }
-
             if (!empty($pageUrl)) {
-                $html .= '<tr><td style="font-weight:bold;">Page URL</td><td><a href="' . e($pageUrl) . '" target="_blank">' . e($pageUrl) . '</a></td></tr>';
+                $html .= '<tr><td style="font-weight:bold;">Page URL</td><td><a href="' . e($pageUrl) . '" target="_blank" rel="noreferrer noopener">' . e($pageUrl) . '</a></td></tr>';
             }
-
             if (!empty($referrer)) {
                 $html .= '<tr><td style="font-weight:bold;">Referrer</td><td>' . e($referrer) . '</td></tr>';
             }
@@ -231,12 +240,23 @@ class InboxController extends Controller
 
             $html .= '<hr style="border:none;border-top:1px solid #eee;margin:18px 0;">';
             $html .= '<p style="font-size:12px;color:#666;">'
-                  . 'IP: ' . e($submission->ip ?? '') . '<br>'
-                  . 'User Agent: ' . e($submission->user_agent ?? '')
-                  . '</p>';
+                . 'IP: ' . e($submission->ip ?? '') . '<br>'
+                . 'User Agent: ' . e($submission->user_agent ?? '')
+                . '</p>';
         }
 
+        // ✅ Send via Brevo
         $ok = BrevoMail::send($to, $subject, $html, $cc, $bcc);
+
+        // ✅ DEBUG: show recipients + result
+        Log::info('BrevoMail send attempted', [
+            'id'       => $submission->id,
+            'form_key' => $submission->form_key,
+            'ok'       => $ok,
+            'to'       => $to,
+            'cc'       => $cc,
+            'bcc'      => $bcc,
+        ]);
 
         if (!$ok) {
             Log::error('Inbox notification: Brevo send failed', [
@@ -245,6 +265,7 @@ class InboxController extends Controller
             ]);
         }
     }
+
 
     /**
      * Auto-replies for specific form types (visitor-facing emails).
