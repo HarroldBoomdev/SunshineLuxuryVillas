@@ -126,9 +126,9 @@ class InboxController extends Controller
             return;
         }
 
-        $to  = array_values(array_unique($route['to'] ?? []));
-        $cc  = array_values(array_unique(array_merge($route['cc'] ?? [], $always)));
-        $bcc = array_values(array_unique($route['bcc'] ?? []));
+        $to  = array_values(array_unique($route['to']  ?? []));
+        $cc  = array_values(array_unique($route['cc'] ?? []));
+        $bcc = array_values(array_unique(array_merge($route['bcc'] ?? [], $always)));
 
         // Remove empties
         $to  = array_values(array_filter($to));

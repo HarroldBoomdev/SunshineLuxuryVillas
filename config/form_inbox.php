@@ -49,9 +49,24 @@ return [
     ],
 
     // Other optional forms — you can add routes here if needed
-    'sell_with_us' => [],
-    'affiliate'    => [],
-    'subscribe'    => [],
+    'sell_with_us' => [
+        'to'  => ['enquires@sunshineluxuryvillas.com'],
+        'cc'  => [],
+        'bcc' => [],
+    ],
+
+    'affiliate' => [
+        'to'  => ['enquires@sunshineluxuryvillas.com'],
+        'cc'  => [],
+        'bcc' => [],
+    ],
+
+    'subscribe' => [
+        'to'  => ['enquires@sunshineluxuryvillas.com'],
+        'cc'  => [],
+        'bcc' => [],
+    ],
+
 
     /*
     |--------------------------------------------------------------------------
