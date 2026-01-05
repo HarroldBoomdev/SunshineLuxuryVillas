@@ -96,6 +96,14 @@ class InboxController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        Log::info('InboxController@store created submission', [
+            'id' => $submission->id,
+            'form_key' => $submission->form_key,
+            'type' => $submission->type,
+            'email' => $submission->email,
+        ]);
+
+
         // 1) Team notification (routes via config/form_inbox.php)
         $this->sendNotificationEmail($submission);
 
