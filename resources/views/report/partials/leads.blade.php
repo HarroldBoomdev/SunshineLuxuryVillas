@@ -186,8 +186,6 @@
 <div id="comparisonContainer" class="hidden p-6 bg-white rounded-lg shadow-md">
     @include('report.partials.data-comparison')
 </div>
-
-
 <script>
 (function () {
   // ======================
@@ -419,51 +417,101 @@
 
   // ======================
   // 3) Pie charts (Location & Source)
+  //    - FIXED COLORS (no random)
+  //    - Tooltip shows: number + percent
   // ======================
   const leadsByLocation = @json($leadsByLocation ?? []);
   const leadsBySource   = @json($leadsBySource ?? []);
 
-  function randomPastelColor() {
-    const r = 150 + Math.floor(Math.random() * 105);
-    const g = 150 + Math.floor(Math.random() * 105);
-    const b = 150 + Math.floor(Math.random() * 105);
-    return `rgb(${r},${g},${b})`;
+  // ✅ Fixed location colors (stable)
+  const LOCATION_COLORS = {
+    Paphos:    '#ff5aa5',
+    Limassol:  '#4f46e5',
+    Larnaca:   '#22c55e',
+    Famagusta: '#f59e0b',
+  };
+
+  // ✅ Branding colors (stable)
+  const SOURCE_COLORS = {
+    APITS:     '#f4940c',
+    Rightmove: '#00deb5',
+    RightMove: '#00deb5',
+    Zoopla:    '#8046f2',
+    SLV:       '#0096c1',
+    HoS:       '#01383f',
+    HOs:       '#01383f',
+  };
+
+  function normalizeKey(k) {
+    // keep as-is but trim spaces
+    return String(k ?? '').trim();
   }
 
-  function makePie(canvasId, labels, data) {
+  function getColorsForLabels(labels, colorMap, fallback = '#9ca3af') {
+    return labels.map(l => colorMap[normalizeKey(l)] || fallback);
+  }
+
+  function makePieOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: function (ctx) {
+              const label = ctx.label ?? '';
+              const value = Number(ctx.raw ?? 0);
+
+              const dataArr = (ctx.dataset && Array.isArray(ctx.dataset.data)) ? ctx.dataset.data : [];
+              const total = dataArr.reduce((sum, v) => sum + Number(v || 0), 0);
+
+              const pct = total ? ((value / total) * 100).toFixed(1) : '0.0';
+              return `${label}: ${value.toLocaleString()} (${pct}%)`;
+            }
+          }
+        }
+      }
+    };
+  }
+
+  function makePie(canvasId, labels, data, colors) {
     const canvas = document.getElementById(canvasId);
-    if (!canvas || labels.length === 0) {
-      console.warn('Pie canvas not found or empty data:', canvasId);
-      return;
+    if (!canvas) {
+      console.warn('Pie canvas not found:', canvasId);
+      return null;
     }
+    if (!labels.length) {
+      console.warn('Pie has no labels:', canvasId);
+      return null;
+    }
+
     const ctx = canvas.getContext('2d');
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
       type: 'pie',
       data: {
         labels,
         datasets: [{
           data,
-          backgroundColor: labels.map(() => randomPastelColor())
+          backgroundColor: colors,
+          borderWidth: 2,
+          borderColor: '#ffffff'
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: { legend: { position: 'bottom' } }
-      }
+      options: makePieOptions()
     });
   }
 
-  const locLabels = Object.keys(leadsByLocation).sort();
+  // Location pie
+  const locLabels = Object.keys(leadsByLocation).map(normalizeKey);
   const locData   = locLabels.map(k => parseInt(leadsByLocation[k] || 0, 10));
+  makePie('pieLocation', locLabels, locData, getColorsForLabels(locLabels, LOCATION_COLORS));
 
-  const srcLabels = Object.keys(leadsBySource).sort();
+  // Source pie
+  const srcLabels = Object.keys(leadsBySource).map(normalizeKey);
   const srcData   = srcLabels.map(k => parseInt(leadsBySource[k] || 0, 10));
-
-  makePie('pieLocation', locLabels, locData);
-  makePie('pieSource',   srcLabels, srcData);
+  makePie('pieSource', srcLabels, srcData, getColorsForLabels(srcLabels, SOURCE_COLORS));
 
 })();
 </script>
-

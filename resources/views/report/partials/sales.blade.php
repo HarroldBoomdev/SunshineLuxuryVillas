@@ -182,7 +182,7 @@
         </div>
 
         {{-- Visual Breakdown (Pie charts) --}}
-        <div class="p-4 bg-white rounded-lg border border-gray-200 mt-6">
+        <!-- <div class="p-4 bg-white rounded-lg border border-gray-200 mt-6">
           <h3 class="text-md font-semibold mb-3">Visual Breakdown ({{ $selectedYear }})</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -194,7 +194,7 @@
               <canvas id="pieSource" class="chart-fixed"></canvas>
             </div>
           </div>
-        </div>
+        </div> -->
 
       </div>
     </div>

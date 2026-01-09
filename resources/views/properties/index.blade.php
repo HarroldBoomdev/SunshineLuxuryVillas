@@ -96,6 +96,11 @@
                             Featured Properties
                         </button>
                     </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#recommendationsModal">
+                            Property Recommendations
+                        </button>
+                    </div>
 
                 </div>
             </form>
@@ -264,12 +269,35 @@
                                     >
                                 </td>
 
-
-
                                 <td class="px-4 py-2 border">{{ $property->reference }}</td>
                                 <td class="px-4 py-2 border">{{ $property->title }}</td>
-                                <td class="px-4 py-2 border">{{ $property->location ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 border">{{ $property->bedrooms ?? 'N/A' }}</td>
+                                <td class="px-4 py-2 border">
+                                    @php
+                                        $loc = trim(implode(', ', array_filter([
+                                            $property->town ?? null,
+                                            $property->region ?? ($property->province ?? null),
+                                            $property->country ?? null,
+                                        ])));
+                                    @endphp
+                                    {{ $loc !== '' ? $loc : 'N/A' }}
+                                </td>
+
+                                <td class="px-4 py-2 border">
+                                    @php
+                                        // Works whether $property is an Eloquent model OR an array from an ajax/render pipeline
+                                        $beds = data_get($property, 'bedrooms');
+
+                                        // fallbacks if some feeds stored different key names
+                                        if ($beds === null || $beds === '') {
+                                            $beds = data_get($property, 'bedRooms')
+                                                ?? data_get($property, 'beds');
+                                        }
+                                    @endphp
+
+                                    {{ ($beds !== null && $beds !== '') ? $beds : 'N/A' }}
+                                </td>
+
+
                                 <td class="px-4 py-2 border">
                                     @if($property->price)
                                         €{{ number_format($property->price, 2) }}
@@ -277,8 +305,14 @@
                                         <span class="text-muted">N/A</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-2 border">{{ $property->plot_size ?? 'N/A' }}</td>
-                                <td class="px-4 py-2 border">{{ $property->internal_area ?? 'N/A' }}</td>
+                                <td class="px-4 py-2 border">
+                                    {{ $property->plot_m2 ?? 'N/A' }}
+                                </td>
+
+                                <td class="px-4 py-2 border">
+                                    {{ $property->covered_m2 ?? 'N/A' }}
+                                </td>
+
                                 <td class="px-4 py-2 border">
                                     @php
                                         $ref = strtoupper($property->reference);
@@ -365,6 +399,7 @@
         </div>
     </div>
     @include('properties.partials.featured-modal')
+    @include('properties.partials.recommendations-modal')
 </div>
 </div>
 

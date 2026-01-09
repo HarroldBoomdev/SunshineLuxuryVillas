@@ -61,13 +61,23 @@ class PropertiesController extends Controller
             'bedrooms',
             'bathrooms',
             'price',
+
+            // location fields
+            'town',
+            'region',
             'country',
+
+            // area fields (most common in your codebase)
+            'plot_m2',
+            'covered_m2',
+
             'complex',
             'labels',
             'status',
             'created_at',
             'owner'
         );
+
 
         // Only own properties unless user has full view permission
         if (!auth()->user()->hasPermissionTo('property.view')) {
@@ -1443,7 +1453,18 @@ class PropertiesController extends Controller
     private function normalizeAreaAndDistanceKeys(array $data): array
     {
         $map = [
-            // Areas
+            'area_covered'       => 'covered_m2',
+            'area_plot'          => 'plot_m2',
+            'area_roof_garden'   => 'roofgarden_m2',
+            'area_attic'         => 'attic_m2',
+            'area_cov_veranda'   => 'covered_veranda_m2',
+            'area_uncov_veranda' => 'uncovered_veranda_m2',
+            'area_cov_parking'   => 'covered_parking_m2',
+            'area_basement'      => 'basement_m2',
+            'area_courtyard'     => 'courtyard_m2',
+            'area_garden'        => 'garden_m2',
+
+            // ✅ Legacy/import keys → DB columns (keep for backward compatibility)
             'covered'            => 'covered_m2',
             'plot'               => 'plot_m2',
             'roofGarden'         => 'roofgarden_m2',
@@ -1454,8 +1475,6 @@ class PropertiesController extends Controller
             'basement'           => 'basement_m2',
             'courtyard'          => 'courtyard_m2',
             'coveredParking'     => 'covered_parking_m2',
-
-            // Distances
             'amenities'          => 'amenities_km',
             'airport'            => 'airport_km',
             'sea'                => 'sea_km',

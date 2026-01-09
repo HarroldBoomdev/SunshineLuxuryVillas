@@ -40,6 +40,8 @@ use App\Http\Controllers\InboxController;
 use App\Http\Middleware\Authenticate as AppAuthenticate;
 use App\Http\Controllers\Reports\HistoricalListingsController;
 use App\Http\Controllers\FeaturedPropertyController;
+use App\Http\Controllers\PropertyRecommendationController;
+use App\Http\Controllers\ClientRecommendationsController;
 
 use App\Http\Controllers\LocationsController;
 
@@ -369,6 +371,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/featured-properties/save', [FeaturedPropertyController::class, 'save'])
             ->name('admin.featured.save');
     });
+    Route::get('/admin/properties/recommendations/search', [PropertyRecommendationController::class, 'search'])
+    ->name('admin.properties.recommendations.search');
+
+    Route::middleware(['auth'])->prefix('admin/recommendations')->group(function () {
+        Route::get('/properties/search', [PropertyRecommendationController::class, 'search']);
+        Route::get('/clients/search',    [PropertyRecommendationController::class, 'searchClients']);
+        Route::post('/send',             [PropertyRecommendationController::class, 'send']);
+    });
 
     //API and XML Feed
 
@@ -425,6 +435,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/properties/logs-tab', [PropertyLogController::class, 'tab'])
     ->name('properties.logs.tab');
 
+
+    Route::get('/clients/{client}/recommendations', [ClientRecommendationsController::class, 'list'])
+    ->name('clients.recommendations.list');
+
+    Route::post('/clients/{client}/recommendations/send', [ClientRecommendationsController::class, 'send'])
+        ->name('clients.recommendations.send');
+
+    Route::get('/clients/{clientId}/recommendations', [ClientRecommendationsController::class, 'list']);
+    Route::post('/clients/{clientId}/recommendations/send', [ClientRecommendationsController::class, 'send']);
 
 
 

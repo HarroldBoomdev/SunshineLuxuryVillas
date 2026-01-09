@@ -922,7 +922,6 @@ class ReportController extends Controller
             'Paphos'    => (float) ($areaMoney['Paphos'] ?? 0),
             'Limassol'  => (float) ($areaMoney['Limassol'] ?? 0),
             'Famagusta' => (float) ($areaMoney['Famagusta'] ?? 0),
-            'Pissouri'  => (float) ($areaMoney['Pissouri'] ?? 0),
             'Larnaca'   => (float) ($areaMoney['Larnaca'] ?? 0),
         ];
 
@@ -1092,16 +1091,14 @@ class ReportController extends Controller
             'Limassol'  => (int) round($totalListings * 0.25),
             'Famagusta' => (int) round($totalListings * 0.15),
             'Larnaca'   => (int) round($totalListings * 0.10),
-            'Pissouri'  => 0,
         ];
-        $byRegion['Pissouri'] += ($totalListings - array_sum($byRegion)); // fix rounding
 
         /**
          * Listings by Location (your 5 areas)
          * Uses best available: region -> town -> location (only if columns exist)
          * If it still ends up 0 for all, fallback to the same hardcoded split.
          */
-        $allowedLocations = ['Paphos', 'Limassol', 'Famagusta', 'Pissouri', 'Larnaca'];
+        $allowedLocations = ['Paphos', 'Limassol', 'Famagusta', 'Larnaca'];
 
         // Build dynamic COALESCE safely (no missing column references)
         $coalesceParts = [];
@@ -1139,7 +1136,6 @@ class ReportController extends Controller
             if (str_contains($labelNorm, 'paphos'))    { $byLocation['Paphos']    += (int) $total; continue; }
             if (str_contains($labelNorm, 'limassol'))  { $byLocation['Limassol']  += (int) $total; continue; }
             if (str_contains($labelNorm, 'famagusta')) { $byLocation['Famagusta'] += (int) $total; continue; }
-            if (str_contains($labelNorm, 'pissouri'))  { $byLocation['Pissouri']  += (int) $total; continue; }
             if (str_contains($labelNorm, 'larnaca'))   { $byLocation['Larnaca']   += (int) $total; continue; }
         }
 

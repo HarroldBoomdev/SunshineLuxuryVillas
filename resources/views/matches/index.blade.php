@@ -111,9 +111,12 @@
                 <tr>
                     <td>
                         @php
-                            $photos = json_decode($match->photos, true);
-                            $thumbnail = (!empty($photos) && isset($photos[0])) ? $photos[0] : asset('images/placeholder.png');
+                            $photos = $match->photos ?? [];
+                            $thumbnail = (!empty($photos) && isset($photos[0]))
+                                ? $photos[0]
+                                : asset('images/no-image.png');
                         @endphp
+
                         <img
                             src="{{ $thumbnail }}"
                             alt="Thumbnail"

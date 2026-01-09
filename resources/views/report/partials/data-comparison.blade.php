@@ -146,154 +146,164 @@
 
 <script>
 (function () {
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js not loaded.');
-        return;
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js not loaded.');
+    return;
+  }
+
+  // ======================================
+  // SERVER DATA FOR OTHER SECTIONS (UNCHANGED)
+  // ======================================
+  const allLeadsByYear = @json($comparisonData['leadsByYear'] ?? []);
+  const allMetrics     = @json($comparisonData['metrics'] ?? []);
+
+  // ✅ FIXED / STEADY COLORS PER YEAR
+  const YEAR_COLORS = {
+    2022: { line: '#2563eb', fill: 'rgba(37, 99, 235, 0.12)' }, // blue
+    2023: { line: '#16a34a', fill: 'rgba(22, 163, 74, 0.12)' }, // green
+    2024: { line: '#f59e0b', fill: 'rgba(245, 158, 11, 0.12)' }, // amber
+    2025: { line: '#ef4444', fill: 'rgba(239, 68, 68, 0.12)' }, // red
+  };
+
+  function colorForYear(year) {
+    // fallback if a new year appears
+    const fallback = { line: '#6b7280', fill: 'rgba(107, 114, 128, 0.12)' }; // gray
+    return YEAR_COLORS[year] || fallback;
+  }
+
+  // ======================================
+  // A. TOP: LEADS LINE GRAPH (HARDCODED)
+  // ======================================
+  let yoyChart = null;
+
+  const yoyCache = {
+    months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    series: {
+      2022: [214,181,207,158,247,187,222,210,233,219,175,93],
+      2023: [219,202,251,175,248,176,165,142,160,171,143,100],
+      2024: [168,160,150,139,137,126,148,154,140,158,112,58],
+      2025: [106,191,178,118,79,124,185,118,113,106,102,41]
     }
+  };
 
-    // ======================================
-    // SERVER DATA FOR OTHER SECTIONS (UNCHANGED)
-    // ======================================
-    const allLeadsByYear = @json($comparisonData['leadsByYear'] ?? []);
-    const allMetrics     = @json($comparisonData['metrics'] ?? []);
+  function buildYoyDatasets(selectedYears) {
+    return selectedYears.map(year => {
+      const c = colorForYear(year);
+      return {
+        label: String(year),
+        data: yoyCache.series[year] || [],
+        borderColor: c.line,
+        backgroundColor: c.fill,   // you can keep 'transparent' if you don't want fill
+        fill: false,               // set true if you want area fill
+        borderWidth: 2,
+        tension: 0.25,
+        pointRadius: 2,
+        pointHoverRadius: 4
+      };
+    });
+  }
 
-    function randomColor() {
-        const r = Math.floor(80 + Math.random() * 150);
-        const g = Math.floor(80 + Math.random() * 150);
-        const b = Math.floor(80 + Math.random() * 150);
-        return `rgb(${r},${g},${b})`;
-    }
+  function renderYoyChart(selectedYears) {
+    const canvas = document.getElementById('lineLeadsYoY');
+    if (!canvas) return;
 
-    // ======================================
-    // A. TOP: LEADS LINE GRAPH (HARDCODED)
-    // ======================================
-    let yoyChart = null;
+    const ctx = canvas.getContext('2d');
+    if (yoyChart) yoyChart.destroy();
 
-    const yoyCache = {
-        months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-        series: {
-            2022: [214,181,207,158,247,187,222,210,233,219,175,93],
-            2023: [219,202,251,175,248,176,165,142,160,171,143,100],
-            2024: [168,160,150,139,137,126,148,154,140,158,112,58],
-            2025: [106,191,178,118,79,124,185,118,113,106,102,41]
+    yoyChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: yoyCache.months,
+        datasets: buildYoyDatasets(selectedYears)
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
         }
-    };
+      }
+    });
+  }
 
-    function buildYoyDatasets(selectedYears) {
-        return selectedYears.map(year => ({
-            label: String(year),
-            data: yoyCache.series[year],
-            borderColor: randomColor(),
-            backgroundColor: 'transparent',
-            borderWidth: 2,
-            tension: 0.25
-        }));
-    }
+  function initYoyChart() {
+    const checkboxes = Array.from(document.querySelectorAll('.year-toggle'));
+    const selectedYears = checkboxes.map(cb => parseInt(cb.value, 10));
 
-    function renderYoyChart(selectedYears) {
-        const canvas = document.getElementById('lineLeadsYoY');
-        if (!canvas) return;
+    renderYoyChart(selectedYears);
 
-        const ctx = canvas.getContext('2d');
-        if (yoyChart) yoyChart.destroy();
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const activeYears = checkboxes
+          .filter(c => c.checked)
+          .map(c => parseInt(c.value, 10));
 
-        yoyChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: yoyCache.months,
-                datasets: buildYoyDatasets(selectedYears)
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom' }
-                },
-                scales: {
-                    y: { beginAtZero: true, ticks: { precision: 0 } }
-                }
-            }
-        });
-    }
-
-    function initYoyChart() {
-        const checkboxes = Array.from(document.querySelectorAll('.year-toggle'));
-        const selectedYears = checkboxes.map(cb => parseInt(cb.value, 10));
-
-        renderYoyChart(selectedYears);
-
-        checkboxes.forEach(cb => {
-            cb.addEventListener('change', () => {
-                const activeYears = checkboxes
-                    .filter(c => c.checked)
-                    .map(c => parseInt(c.value, 10));
-
-                if (!activeYears.length) {
-                    cb.checked = true;
-                    return;
-                }
-
-                renderYoyChart(activeYears);
-            });
-        });
-    }
-
-    // ======================================
-    // B. PORTAL YEAR-ON-YEAR TABLE (UNCHANGED)
-    // ======================================
-    function renderPortalTable(baseYear, compareYear) {
-        if (!baseYear || !compareYear || baseYear === compareYear) return;
-
-        fetch(`/reports/api/portal-comparison?base_year=${baseYear}&compare_year=${compareYear}`)
-            .then(r => r.json())
-            .then(data => {
-                const tbody = document.querySelector('#portalComparisonTable tbody');
-                if (!tbody) return;
-                tbody.innerHTML = '';
-
-                document.getElementById('thBaseYear').textContent = `${data.base_year} Total`;
-                document.getElementById('thBasePct').textContent  = `% of ${data.base_year}`;
-                document.getElementById('thCompYear').textContent = `${data.compare_year} Total`;
-                document.getElementById('thCompPct').textContent  = `% of ${data.compare_year}`;
-
-                data.portals.forEach(row => {
-                    const delta = row.delta_pct;
-                    const deltaClass = delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : '';
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td class="border p-2">${row.portal}</td>
-                        <td class="border p-2 text-right">${row.base_total}</td>
-                        <td class="border p-2 text-right">${row.base_pct_of_year}%</td>
-                        <td class="border p-2 text-right">${row.compare_total}</td>
-                        <td class="border p-2 text-right">${row.compare_pct_of_year}%</td>
-                        <td class="border p-2 text-right ${deltaClass}">
-                            ${delta === null ? '-' : (delta > 0 ? '+' + delta : delta)}%
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            });
-    }
-
-    function initPortalTable() {
-        const base = document.getElementById('portalBaseYear');
-        const comp = document.getElementById('portalCompareYear');
-        if (!base || !comp) return;
-
-        function refresh() {
-            renderPortalTable(base.value, comp.value);
+        if (!activeYears.length) {
+          cb.checked = true;
+          return;
         }
 
-        base.addEventListener('change', refresh);
-        comp.addEventListener('change', refresh);
-        refresh();
-    }
+        renderYoyChart(activeYears);
+      });
+    });
+  }
 
-    // ======================================
-    // INIT ALL (UNCHANGED)
-    // ======================================
-    initYoyChart();
-    initPortalTable();
+  // ======================================
+  // B. PORTAL YEAR-ON-YEAR TABLE (UNCHANGED)
+  // ======================================
+  function renderPortalTable(baseYear, compareYear) {
+    if (!baseYear || !compareYear || baseYear === compareYear) return;
+
+    fetch(`/reports/api/portal-comparison?base_year=${baseYear}&compare_year=${compareYear}`)
+      .then(r => r.json())
+      .then(data => {
+        const tbody = document.querySelector('#portalComparisonTable tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        document.getElementById('thBaseYear').textContent = `${data.base_year} Total`;
+        document.getElementById('thBasePct').textContent  = `% of ${data.base_year}`;
+        document.getElementById('thCompYear').textContent = `${data.compare_year} Total`;
+        document.getElementById('thCompPct').textContent  = `% of ${data.compare_year}`;
+
+        data.portals.forEach(row => {
+          const delta = row.delta_pct;
+          const deltaClass = delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : '';
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="border p-2">${row.portal}</td>
+            <td class="border p-2 text-right">${row.base_total}</td>
+            <td class="border p-2 text-right">${row.base_pct_of_year}%</td>
+            <td class="border p-2 text-right">${row.compare_total}</td>
+            <td class="border p-2 text-right">${row.compare_pct_of_year}%</td>
+            <td class="border p-2 text-right ${deltaClass}">
+              ${delta === null ? '-' : (delta > 0 ? '+' + delta : delta)}%
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+  }
+
+  function initPortalTable() {
+    const base = document.getElementById('portalBaseYear');
+    const comp = document.getElementById('portalCompareYear');
+    if (!base || !comp) return;
+
+    function refresh() { renderPortalTable(base.value, comp.value); }
+
+    base.addEventListener('change', refresh);
+    comp.addEventListener('change', refresh);
+    refresh();
+  }
+
+  // INIT
+  initYoyChart();
+  initPortalTable();
 
 })();
 </script>
+
