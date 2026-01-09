@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
-
-use App\Models\ClientModel;      // ✅ use your real client model
-use App\Models\PropertiesModel;  // ✅ your property model
+use App\Models\ClientModel;
+use App\Models\PropertiesModel;
 
 class ClientRecommendationsController extends Controller
 {
@@ -17,19 +15,17 @@ class ClientRecommendationsController extends Controller
     {
         $client = ClientModel::findOrFail($clientId);
 
-        // ✅ your client columns (exactly as in blade)
+        // Client budget fields (your DB columns)
         $min = (float) ($client->MinimumPrice ?? 0);
         $max = (float) ($client->MaximumPrice ?? 0);
 
-        // safety defaults
+        // Safety defaults
         if ($min < 0) $min = 0;
         if ($max <= 0) $max = 999999999;
         if ($min > $max) {
-            // swap if wrong
             [$min, $max] = [$max, $min];
         }
 
-        // ✅ match by property price
         $props = PropertiesModel::query()
             ->select([
                 'id',
@@ -55,21 +51,18 @@ class ClientRecommendationsController extends Controller
                 $photo = $photos[0] ?? asset('images/no-image.jpg');
 
                 return [
-                    'id'        => $p->id,
+                    'id'        => (int) $p->id,
                     'title'     => $p->title ?: 'Untitled',
                     'reference' => $p->reference ?: '',
                     'price'     => (float) ($p->price ?? 0),
                     'photo'     => $photo,
                     'location'  => trim(implode(', ', array_filter([$p->town, $p->region, $p->country]))),
-
-                    // ✅ adjust this to your real public property page if different
                     'url'       => url("/properties/{$p->id}"),
                 ];
             })
             ->values();
 
         return response()->json([
-            // ✅ these keys must match your JS
             'client_name'  => trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')),
             'client_email' => (string) ($client->email ?? ''),
             'min_price'    => (int) $min,
@@ -79,7 +72,7 @@ class ClientRecommendationsController extends Controller
     }
 
     /**
-     * Send email with selected properties
+     * Send email with selected properties (Brevo API, NOT SMTP)
      */
     public function send(Request $request, $clientId)
     {
@@ -90,11 +83,16 @@ class ClientRecommendationsController extends Controller
             'property_ids.*' => 'integer',
         ]);
 
-        if (!$client->email) {
+        if (empty($client->email)) {
             return response()->json(['ok' => false, 'message' => 'Client has no email.'], 422);
         }
 
-        $ids = $request->property_ids;
+        // ✅ Clean + de-dup ids
+        $ids = array_values(array_unique(array_map('intval', $request->property_ids)));
+
+        // ✅ Hard safety limit to avoid Brevo payload issues
+        $maxItems = 5;
+        $ids = array_slice($ids, 0, $maxItems);
 
         $properties = PropertiesModel::query()
             ->select([
@@ -109,6 +107,8 @@ class ClientRecommendationsController extends Controller
                 'property_description',
             ])
             ->whereIn('id', $ids)
+            // ✅ Preserve user-selected order
+            ->orderByRaw('FIELD(id,' . implode(',', $ids) . ')')
             ->get()
             ->map(function ($p) {
                 $photos = is_array($p->photos)
@@ -117,9 +117,16 @@ class ClientRecommendationsController extends Controller
 
                 $photo = $photos[0] ?? asset('images/no-image.jpg');
 
+                // ✅ Trim description to keep email small
+                $desc = (string) ($p->property_description ?? '');
+                $desc = trim(strip_tags($desc));
+                if (mb_strlen($desc) > 500) {
+                    $desc = mb_substr($desc, 0, 500) . '...';
+                }
+
                 return [
                     'title_line' => $this->buildTitleLine($p),
-                    'desc'       => (string) ($p->property_description ?? ''),
+                    'desc'       => $desc,
                     'reference'  => (string) ($p->reference ?? ''),
                     'price'      => (float) ($p->price ?? 0),
                     'photo'      => $photo,
@@ -127,22 +134,22 @@ class ClientRecommendationsController extends Controller
                 ];
             });
 
-        $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
+        $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')) ?: 'Client';
+
+        // Build HTML from Blade
+        $html = view('emails.property_recommendations', [
+            'clientName' => $clientName,
+            'properties' => $properties,
+        ])->render();
+
+        $text = trim(preg_replace('/\s+/', ' ', strip_tags($html)));
 
         /** @var \App\Services\BrevoMailer $brevo */
         $brevo = app(\App\Services\BrevoMailer::class);
 
-        // build a simple HTML email (works immediately, no Blade render needed)
-        $html = view('emails.property_recommendations', [
-            'clientName' => $clientName ?: 'Client',
-            'properties' => $properties,
-        ])->render();
-
-        $text = strip_tags($html);
-
-        // Send via Brevo API (NOT SMTP)
+        // ✅ Brevo API send (expects 4 args)
         $brevo->send(
-            $client->email,
+            (string) $client->email,
             'Property Recommendations',
             $html,
             $text
@@ -153,7 +160,6 @@ class ClientRecommendationsController extends Controller
 
     private function buildTitleLine($p): string
     {
-        // Keep it simple for now (you can enhance later with bedrooms/type)
         $loc = trim(implode(', ', array_filter([$p->town, $p->region])));
         $title = trim((string) ($p->title ?? 'Property'));
         return $loc ? "{$title}, {$loc}" : $title;
