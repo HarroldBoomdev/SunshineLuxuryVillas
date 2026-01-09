@@ -129,13 +129,24 @@ class ClientRecommendationsController extends Controller
 
         $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
 
-        Mail::send('emails.property_recommendations', [
+        /** @var \App\Services\BrevoMailer $brevo */
+        $brevo = app(\App\Services\BrevoMailer::class);
+
+        // build a simple HTML email (works immediately, no Blade render needed)
+        $html = view('emails.property_recommendations', [
             'clientName' => $clientName ?: 'Client',
             'properties' => $properties,
-        ], function ($m) use ($client, $clientName) {
-            $m->to($client->email, $clientName ?: null)
-              ->subject('Property Recommendations');
-        });
+        ])->render();
+
+        $text = strip_tags($html);
+
+        // Send via Brevo API (NOT SMTP)
+        $brevo->send(
+            $client->email,
+            'Property Recommendations',
+            $html,
+            $text
+        );
 
         return response()->json(['ok' => true]);
     }
