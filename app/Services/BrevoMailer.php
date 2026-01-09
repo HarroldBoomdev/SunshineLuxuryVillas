@@ -2,41 +2,96 @@
 
 namespace App\Services;
 
-use Brevo\Client\Api\TransactionalEmailsApi;
-use Brevo\Client\Configuration;
-use Brevo\Client\Model\SendSmtpEmail;
-use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Log;
 
 class BrevoMailer
 {
-    public function send(string $toEmail, ?string $toName, string $subject, string $html): void
+    protected Client $http;
+
+    public function __construct()
+    {
+        $this->http = new Client([
+            'base_uri' => 'https://api.brevo.com/v3/',
+            'timeout'  => 20,
+        ]);
+    }
+
+    /**
+     * Send transactional email via Brevo API (NOT SMTP)
+     *
+     * @param string $toEmail
+     * @param string $subject
+     * @param string $html
+     * @param string $text
+     * @param array  $extra  Optional: replyTo, cc, bcc
+     */
+    public function send(string $toEmail, string $subject, string $html, string $text, array $extra = []): void
     {
         $apiKey = config('brevo.api_key');
         if (!$apiKey) {
-            throw new \RuntimeException('BREVO_API_KEY is missing in .env');
+            throw new \RuntimeException('BREVO_API_KEY is missing.');
         }
 
-        $config = Configuration::getDefaultConfiguration()
-            ->setApiKey('api-key', $apiKey);
+        $senderEmail = config('brevo.sender_email');
+        $senderName  = config('brevo.sender_name', 'Sunshine Luxury Villas');
 
-        $api = new TransactionalEmailsApi(
-            new GuzzleClient(),
-            $config
-        );
+        if (!$senderEmail) {
+            throw new \RuntimeException('BREVO_SENDER_EMAIL is missing.');
+        }
 
-        $email = new SendSmtpEmail([
-            'subject' => $subject,
-            'htmlContent' => $html,
+        // ✅ Build Brevo payload (IMPORTANT: do NOT include "headers")
+        $payload = [
             'sender' => [
-                'email' => config('brevo.sender_email'),
-                'name'  => config('brevo.sender_name'),
+                'email' => $senderEmail,
+                'name'  => $senderName,
             ],
-            'to' => [[
-                'email' => $toEmail,
-                'name'  => $toName ?: $toEmail,
-            ]],
-        ]);
+            'to' => [
+                ['email' => $toEmail],
+            ],
+            'subject'     => $subject,
+            'htmlContent' => $html,
+            'textContent' => $text,
+        ];
 
-        $api->sendTransacEmail($email);
+        // Optional Reply-To
+        if (!empty($extra['replyToEmail'])) {
+            $payload['replyTo'] = [
+                'email' => $extra['replyToEmail'],
+                'name'  => $extra['replyToName'] ?? $senderName,
+            ];
+        }
+
+        // Optional CC/BCC
+        if (!empty($extra['cc']) && is_array($extra['cc'])) {
+            $payload['cc'] = array_map(fn($e) => ['email' => $e], $extra['cc']);
+        }
+        if (!empty($extra['bcc']) && is_array($extra['bcc'])) {
+            $payload['bcc'] = array_map(fn($e) => ['email' => $e], $extra['bcc']);
+        }
+
+        try {
+            $res = $this->http->post('smtp/email', [
+                'headers' => [
+                    'api-key'       => $apiKey,
+                    'Content-Type'  => 'application/json',
+                    'Accept'        => 'application/json',
+                ],
+                'json' => $payload,
+            ]);
+
+            // optional logging (useful while testing)
+            Log::info('Brevo send ok', [
+                'to'     => $toEmail,
+                'status' => $res->getStatusCode(),
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Brevo send failed', [
+                'to'      => $toEmail,
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 }
