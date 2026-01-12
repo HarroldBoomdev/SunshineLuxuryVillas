@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\ClientModel;
 use App\Models\PropertiesModel;
+use App\Services\BrevoMailer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ClientRecommendationsController extends Controller
 {
@@ -15,31 +17,18 @@ class ClientRecommendationsController extends Controller
     {
         $client = ClientModel::findOrFail($clientId);
 
-        // Client budget fields (your DB columns)
+        // use your actual columns (lowercase are the real ones you showed in tinker)
         $min = (float) ($client->MinimumPrice ?? 0);
         $max = (float) ($client->MaximumPrice ?? 0);
 
-        // Safety defaults
         if ($min < 0) $min = 0;
         if ($max <= 0) $max = 999999999;
-        if ($min > $max) {
-            [$min, $max] = [$max, $min];
-        }
+        if ($min > $max) [$min, $max] = [$max, $min];
 
         $props = PropertiesModel::query()
-            ->select([
-                'id',
-                'title',
-                'reference',
-                'price',
-                'town',
-                'region',
-                'country',
-                'photos',
-            ])
+            ->select(['id','title','reference','price','town','region','country','photos'])
             ->whereNotNull('price')
-            ->where('price', '>=', $min)
-            ->where('price', '<=', $max)
+            ->whereBetween('price', [$min, $max])
             ->orderBy('price', 'asc')
             ->limit(80)
             ->get()
@@ -48,14 +37,12 @@ class ClientRecommendationsController extends Controller
                     ? $p->photos
                     : (json_decode($p->photos ?? '[]', true) ?: []);
 
-                $photo = $photos[0] ?? asset('images/no-image.jpg');
-
                 return [
                     'id'        => (int) $p->id,
                     'title'     => $p->title ?: 'Untitled',
                     'reference' => $p->reference ?: '',
                     'price'     => (float) ($p->price ?? 0),
-                    'photo'     => $photo,
+                    'photo'     => $photos[0] ?? null,
                     'location'  => trim(implode(', ', array_filter([$p->town, $p->region, $p->country]))),
                     'url'       => url("/properties/{$p->id}"),
                 ];
@@ -72,29 +59,26 @@ class ClientRecommendationsController extends Controller
     }
 
     /**
-     * Send email with selected properties (Brevo API, NOT SMTP)
+     * Send email with selected properties
      */
     public function send(Request $request, $clientId)
     {
         $client = ClientModel::findOrFail($clientId);
 
-        $request->validate([
-            'property_ids'   => 'required|array|min:1',
-            'property_ids.*' => 'integer',
+        $data = $request->validate([
+            'property_ids'   => ['required','array','min:1'],
+            'property_ids.*' => ['integer'],
         ]);
 
         if (empty($client->email)) {
             return response()->json(['ok' => false, 'message' => 'Client has no email.'], 422);
         }
 
-        // ✅ Clean + de-dup ids
-        $ids = array_values(array_unique(array_map('intval', $request->property_ids)));
+        // IDs received from frontend
+        $ids = array_values(array_unique(array_map('intval', $data['property_ids'])));
 
-        // ✅ Hard safety limit to avoid Brevo payload issues
-        $maxItems = 5;
-        $ids = array_slice($ids, 0, $maxItems);
-
-        $properties = PropertiesModel::query()
+        // Fetch found properties
+        $found = PropertiesModel::query()
             ->select([
                 'id',
                 'title',
@@ -107,36 +91,60 @@ class ClientRecommendationsController extends Controller
                 'property_description',
             ])
             ->whereIn('id', $ids)
-            // ✅ Preserve user-selected order
-            ->orderByRaw('FIELD(id,' . implode(',', $ids) . ')')
             ->get()
-            ->map(function ($p) {
-                $photos = is_array($p->photos)
-                    ? $p->photos
-                    : (json_decode($p->photos ?? '[]', true) ?: []);
+            ->keyBy('id');
 
-                $photo = $photos[0] ?? asset('images/no-image.jpg');
+        // Keep the same order as user selection + drop missing ids safely
+        $ordered = collect($ids)
+            ->map(fn ($id) => $found->get($id))
+            ->filter()
+            ->values();
 
-                // ✅ Trim description to keep email small
-                $desc = (string) ($p->property_description ?? '');
-                $desc = trim(strip_tags($desc));
-                if (mb_strlen($desc) > 500) {
-                    $desc = mb_substr($desc, 0, 500) . '...';
-                }
+        // LOG the real reason when counts mismatch
+        Log::info('Recommendations send()', [
+            'client_id' => $clientId,
+            'email' => $client->email,
+            'ids_received_count' => count($ids),
+            'ids_received' => $ids,
+            'found_count' => $ordered->count(),
+            'missing_ids' => array_values(array_diff($ids, $ordered->pluck('id')->map(fn($v)=>(int)$v)->all())),
+        ]);
 
-                return [
-                    'title_line' => $this->buildTitleLine($p),
-                    'desc'       => $desc,
-                    'reference'  => (string) ($p->reference ?? ''),
-                    'price'      => (float) ($p->price ?? 0),
-                    'photo'      => $photo,
-                    'url'        => url("/properties/{$p->id}"),
-                ];
-            });
+        if ($ordered->isEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No properties found for selected IDs.'
+            ], 422);
+        }
 
-        $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? '')) ?: 'Client';
+        $properties = $ordered->map(function ($p) {
+            $photos = is_array($p->photos)
+                ? $p->photos
+                : (json_decode($p->photos ?? '[]', true) ?: []);
 
-        // Build HTML from Blade
+            $photo = $photos[0] ?? null;
+
+            // IMPORTANT: strip risky html so email doesn't break mid-loop
+            $desc = (string) ($p->property_description ?? '');
+            $desc = trim(strip_tags($desc));
+            if (mb_strlen($desc) > 700) {
+                $desc = mb_substr($desc, 0, 700) . '…';
+            }
+
+            return [
+                'id'         => (int) $p->id,
+                'title_line' => $this->buildTitleLine($p),
+                'desc'       => $desc,
+                'reference'  => (string) ($p->reference ?? ''),
+                'price'      => (float) ($p->price ?? 0),
+                'photo'      => $photo,
+                'url'        => url("/properties/{$p->id}"),
+            ];
+        })->all(); // convert to plain array for Blade stability
+
+        $clientName = trim(($client->first_name ?? '') . ' ' . ($client->last_name ?? ''));
+        $clientName = $clientName ?: 'Client';
+
         $html = view('emails.property_recommendations', [
             'clientName' => $clientName,
             'properties' => $properties,
@@ -144,23 +152,25 @@ class ClientRecommendationsController extends Controller
 
         $text = trim(preg_replace('/\s+/', ' ', strip_tags($html)));
 
-        /** @var \App\Services\BrevoMailer $brevo */
-        $brevo = app(\App\Services\BrevoMailer::class);
+        /** @var BrevoMailer $brevo */
+        $brevo = app(BrevoMailer::class);
 
-        // ✅ Brevo API send (expects 4 args)
         $brevo->send(
-            (string) $client->email,
+            $client->email,
             'Property Recommendations',
             $html,
             $text
         );
 
-        return response()->json(['ok' => true]);
+        return response()->json([
+            'ok' => true,
+            'sent' => count($properties),
+        ]);
     }
 
     private function buildTitleLine($p): string
     {
-        $loc = trim(implode(', ', array_filter([$p->town, $p->region])));
+        $loc = trim(implode(', ', array_filter([$p->town ?? null, $p->region ?? null, $p->country ?? null])));
         $title = trim((string) ($p->title ?? 'Property'));
         return $loc ? "{$title}, {$loc}" : $title;
     }
