@@ -61,6 +61,10 @@ class PropertyResource extends JsonResource
             'sheetPlan'             => $this->sheetPlan ?? null,
             'titleDead'             => $this->titleDead ?? null,
             'share'                 => $this->share ?? null,
+
+            'latitude'  => $this->latitude,
+            'longitude' => $this->longitude,
+
         ];
 
         // ✅ Merge extras into attrs

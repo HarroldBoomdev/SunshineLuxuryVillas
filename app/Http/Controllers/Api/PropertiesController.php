@@ -49,6 +49,9 @@ class PropertiesController extends Controller
                 'photos',
                 'photo',
 
+                'latitude',
+                'longitude',
+
                 // 🏠 Areas
                 'covered_m2',
                 'plot_m2',
