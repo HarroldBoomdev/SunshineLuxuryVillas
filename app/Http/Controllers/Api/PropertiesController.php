@@ -14,13 +14,12 @@ class PropertiesController extends Controller
 {
     public function apiIndex(Request $request)
     {
-        $perPage = $request->input('per_page', 12);
+        $perPage = (int) $request->input('per_page', 12);
         $full    = $request->boolean('full');
 
         $query = PropertiesModel::query();
 
         if ($full) {
-            // ✅ Return all important columns (the exact list you specified)
             $query->select([
                 'id',
                 'title',
@@ -49,6 +48,7 @@ class PropertiesController extends Controller
                 'photos',
                 'photo',
 
+                // ✅ GEO (ADD)
                 'latitude',
                 'longitude',
 
@@ -88,7 +88,6 @@ class PropertiesController extends Controller
                 'external_slug',
             ]);
         } else {
-            // Lightweight set (default)
             $query->select([
                 'id',
                 'title',
@@ -105,6 +104,10 @@ class PropertiesController extends Controller
                 'url',
                 'property_description',
                 'photos',
+
+                // ✅ GEO (ADD)
+                'latitude',
+                'longitude',
             ]);
         }
 
@@ -120,7 +123,7 @@ class PropertiesController extends Controller
 
         $properties = $query->paginate($perPage);
 
-        return \App\Http\Resources\PropertyResource::collection($properties);
+        return PropertyResource::collection($properties);
     }
 
 
